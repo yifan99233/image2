@@ -1,0 +1,254 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: image2-postgres
+    restart: unless-stopped
+    command:
+      - postgres
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-600}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-image2}
+      POSTGRES_USER: ${POSTGRES_USER:-image2}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-image2_dev_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-image2} -d ${POSTGRES_DB:-image2}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: image2-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-}"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    container_name: image2-minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-image2minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-image2minio123}
+    ports:
+      - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  user-server:
+    build:
+      context: ./user-server
+    container_name: image2-user-server
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      DEBUG: "false"
+      DATABASE_URL: ${USER_DATABASE_URL:-postgresql+asyncpg://image2:image2_dev_password@postgres:5432/image2}
+      REDIS_URL: ${USER_REDIS_URL:-redis://redis:6379/0}
+      CORS_ORIGINS: ${USER_CORS_ORIGINS:-https://magic.shyfai.cn,https://shyfai.cn}
+      CORS_ORIGIN_REGEX: ${USER_CORS_ORIGIN_REGEX:-.*}
+      SITE_HOST_ROOT_DOMAIN_ALIASES: ${SITE_HOST_ROOT_DOMAIN_ALIASES:-shyfai.cn}
+      JWT_SECRET_KEY: ${USER_JWT_SECRET_KEY}
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 21600
+      TEAM_INVITE_TOKEN_EXPIRE_DAYS: ${USER_TEAM_INVITE_TOKEN_EXPIRE_DAYS:-30}
+      ALLOW_PLAINTEXT_PASSWORD: ${USER_ALLOW_PLAINTEXT_PASSWORD:-false}
+      MINIO_ENDPOINT: ${USER_MINIO_ENDPOINT:-minio:9000}
+      MINIO_PUBLIC_ENDPOINT: ${USER_MINIO_PUBLIC_ENDPOINT:-https://magic.shyfai.cn}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-image2minio}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-image2minio123}
+      MINIO_BUCKET: ${USER_MINIO_BUCKET:-image2-assets}
+      MINIO_SECURE: "false"
+      MINIO_PUBLIC_READ: "true"
+      # 图片存储：七牛（后台站点开关打开后写入；历史 MinIO URL 仍可读）
+      # 注意：不要注入空的 USER_QINIU_*，否则会覆盖下面已有值的 QINIU_*（pydantic 优先 USER_ 前缀）
+      USER_UPLOAD_STORAGE_PROVIDER: ${USER_UPLOAD_STORAGE_PROVIDER:-minio}
+      USER_QINIU_IMAGE_PREFIX: ${USER_QINIU_IMAGE_PREFIX:-image2-assets}
+      USER_MATERIAL_CDN_UPLOAD_CREDIT_COST: ${USER_MATERIAL_CDN_UPLOAD_CREDIT_COST:-1}
+      QINIU_ACCESS_KEY: ${QINIU_ACCESS_KEY:-}
+      QINIU_SECRET_KEY: ${QINIU_SECRET_KEY:-}
+      QINIU_BUCKET: ${QINIU_BUCKET:-}
+      QINIU_CDN_BASE_URL: ${QINIU_CDN_BASE_URL:-}
+      QINIU_UPLOAD_HOST: ${QINIU_UPLOAD_HOST:-https://upload.qiniup.com}
+      USER_IMAGE_STORAGE_TARGET: ${USER_IMAGE_STORAGE_TARGET:-}
+      USER_IMAGE_STORAGE_TARGETS_JSON: ${USER_IMAGE_STORAGE_TARGETS_JSON:-}
+      # R2 hot layer: the browser uploads directly with a short-lived presigned URL;
+      # user-server keeps the MinIO copy as the durable fallback.
+      USER_R2_ENABLED: ${USER_R2_ENABLED:-false}
+      USER_R2_ENDPOINT: ${USER_R2_ENDPOINT:-}
+      USER_R2_ACCESS_KEY_ID: ${USER_R2_ACCESS_KEY_ID:-}
+      USER_R2_SECRET_ACCESS_KEY: ${USER_R2_SECRET_ACCESS_KEY:-}
+      USER_R2_BUCKET: ${USER_R2_BUCKET:-}
+      USER_R2_PUBLIC_BASE_URL: ${USER_R2_PUBLIC_BASE_URL:-}
+      USER_R2_UPLOAD_EXPIRES_SECONDS: ${USER_R2_UPLOAD_EXPIRES_SECONDS:-900}
+      USER_R2_HOT_URL_TTL_SECONDS: ${USER_R2_HOT_URL_TTL_SECONDS:-259200}
+      USER_DATABASE_POOL_SIZE: ${USER_DATABASE_POOL_SIZE:-40}
+      USER_DATABASE_MAX_OVERFLOW: ${USER_DATABASE_MAX_OVERFLOW:-40}
+      USER_DATABASE_POOL_TIMEOUT_SECONDS: ${USER_DATABASE_POOL_TIMEOUT_SECONDS:-30}
+      USER_REDIS_MAX_CONNECTIONS: ${USER_REDIS_MAX_CONNECTIONS:-100}
+      USER_IMAGE_TASK_QUEUE_LIMIT_PER_USER: ${USER_IMAGE_TASK_QUEUE_LIMIT_PER_USER:-20000}
+      BATCH_UPLOAD_MAX_BYTES: ${BATCH_UPLOAD_MAX_BYTES:-67108864}
+      BATCH_UPLOAD_MAX_PROMPT_CHARS: ${BATCH_UPLOAD_MAX_PROMPT_CHARS:-100000}
+      BATCH_UPLOAD_WORKER_INTERVAL_SECONDS: ${BATCH_UPLOAD_WORKER_INTERVAL_SECONDS:-2}
+      BATCH_UPLOAD_WORKER_MAX_INFLIGHT: ${BATCH_UPLOAD_WORKER_MAX_INFLIGHT:-2}
+      BATCH_UPLOAD_WORKER_MAX_ATTEMPTS: ${BATCH_UPLOAD_WORKER_MAX_ATTEMPTS:-3}
+      # 生图并发：线程池 / 上游 inflight / 调度批量限流
+      # These limits are per worker; scale them with provider capacity and the
+      # number of Uvicorn workers instead of multiplying a large task burst.
+      USER_IMAGE_TASK_GENERATION_THREAD_POOL_SIZE: ${USER_IMAGE_TASK_GENERATION_THREAD_POOL_SIZE:-64}
+      USER_IMAGE_TASK_STORAGE_THREAD_POOL_SIZE: ${USER_IMAGE_TASK_STORAGE_THREAD_POOL_SIZE:-64}
+      USER_IMAGE_TASK_GENERATION_MAX_INFLIGHT: ${USER_IMAGE_TASK_GENERATION_MAX_INFLIGHT:-64}
+      USER_IMAGE_TASK_DISPATCHER_BATCH_SIZE: ${USER_IMAGE_TASK_DISPATCHER_BATCH_SIZE:-64}
+      USER_IMAGE_TASK_DISPATCHER_MAX_INFLIGHT: ${USER_IMAGE_TASK_DISPATCHER_MAX_INFLIGHT:-64}
+      # 结果文件下载不占用模型超时；下载并发跟随 image_models.concurrency_limit。
+      USER_IMAGE_RESULT_DOWNLOAD_TIMEOUT_SECONDS: ${USER_IMAGE_RESULT_DOWNLOAD_TIMEOUT_SECONDS:-600}
+      USER_IMAGE_RESULT_DOWNLOAD_READ_TIMEOUT_SECONDS: ${USER_IMAGE_RESULT_DOWNLOAD_READ_TIMEOUT_SECONDS:-30}
+      USER_IMAGE_RESULT_DOWNLOAD_MAX_BYTES: ${USER_IMAGE_RESULT_DOWNLOAD_MAX_BYTES:-67108864}
+      USER_IMAGE_VIDEO_DOWNLOAD_MAX_BYTES: ${USER_IMAGE_VIDEO_DOWNLOAD_MAX_BYTES:-268435456}
+      USER_IMAGE_PROVIDER_RESPONSE_MAX_BYTES: ${USER_IMAGE_PROVIDER_RESPONSE_MAX_BYTES:-67108864}
+      USER_IMAGE_EXPORT_MAX_BYTES: ${USER_IMAGE_EXPORT_MAX_BYTES:-536870912}
+      IMAGE_EXPORT_STREAM_MAX_BYTES: ${IMAGE_EXPORT_STREAM_MAX_BYTES:-107374182400}
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:18000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).read()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  admin-server:
+    build:
+      context: ./admin-server
+    container_name: image2-admin-server
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      DEBUG: "false"
+      DATABASE_URL: ${ADMIN_DATABASE_URL:-postgresql+asyncpg://image2:image2_dev_password@postgres:5432/image2}
+      REDIS_URL: ${ADMIN_REDIS_URL:-redis://redis:6379/1}
+      ADMIN_JWT_SECRET_KEY: ${ADMIN_JWT_SECRET_KEY}
+      ADMIN_JWT_ALGORITHM: HS256
+      ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES: 21600
+      ADMIN_JWT_AUDIENCE: image2-admin
+      CORS_ORIGINS: ${ADMIN_CORS_ORIGINS:-https://magic-admin.shyfai.com}
+      SITE_FRONTEND_ROOT_DOMAIN: ${SITE_FRONTEND_ROOT_DOMAIN:-shyfai.cn}
+      SITE_ADMIN_ROOT_DOMAIN: ${SITE_ADMIN_ROOT_DOMAIN:-shyfai.com}
+      SITE_FRONTEND_BASE_SUBDOMAIN: ${SITE_FRONTEND_BASE_SUBDOMAIN:-magic}
+      SITE_ADMIN_BASE_SUBDOMAIN: ${SITE_ADMIN_BASE_SUBDOMAIN:-magic-admin}
+      SITE_FRONTEND_URL: ${SITE_FRONTEND_URL:-https://magic.shyfai.cn}
+      SITE_HOST_ROOT_DOMAIN_ALIASES: ${SITE_HOST_ROOT_DOMAIN_ALIASES:-shyfai.cn}
+      ALLOW_PLAINTEXT_PASSWORD_LOGIN: ${ADMIN_ALLOW_PLAINTEXT_PASSWORD_LOGIN:-false}
+      SUPER_ADMIN_USERNAME: ${SUPER_ADMIN_USERNAME:-admin}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-admin@shyfai.cn}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD}
+      QINIU_ACCESS_KEY: ${QINIU_ACCESS_KEY:-}
+      QINIU_SECRET_KEY: ${QINIU_SECRET_KEY:-}
+      QINIU_BUCKET: ${QINIU_BUCKET:-}
+      QINIU_CDN_BASE_URL: ${QINIU_CDN_BASE_URL:-}
+      QINIU_UPLOAD_HOST: ${QINIU_UPLOAD_HOST:-https://upload.qiniup.com}
+      OPENAGENT_RELEASE_PREFIX: ${OPENAGENT_RELEASE_PREFIX:-openagent/releases}
+      MINIO_ENDPOINT: ${USER_MINIO_ENDPOINT:-minio:9000}
+      MINIO_PUBLIC_ENDPOINT: ${USER_MINIO_PUBLIC_ENDPOINT:-https://magic.shyfai.cn}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-image2minio}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-image2minio123}
+      MINIO_BUCKET: ${USER_MINIO_BUCKET:-image2-assets}
+      MINIO_SECURE: "false"
+      MINIO_PUBLIC_READ: "true"
+    command: >
+      sh -c "alembic upgrade head &&
+             python scripts/seed_super_admin.py &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8001:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).read()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  user-web:
+    build:
+      context: .
+      dockerfile: user-web/Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    container_name: image2-user-web
+    restart: unless-stopped
+    depends_on:
+      user-server:
+        condition: service_healthy
+    ports:
+      - "${USER_WEB_BIND_ADDRESS:-127.0.0.1}:${USER_WEB_PORT:-3000}:80"
+
+  admin-web:
+    build:
+      context: ./admin-web
+      args:
+        VITE_ADMIN_API_BASE_URL: /admin-api
+        VITE_SITE_FRONTEND_ROOT_DOMAIN: ${SITE_FRONTEND_ROOT_DOMAIN:-shyfai.cn}
+        VITE_SITE_ADMIN_ROOT_DOMAIN: ${SITE_ADMIN_ROOT_DOMAIN:-shyfai.cn}
+        VITE_SITE_FRONTEND_BASE_SUBDOMAIN: ${SITE_FRONTEND_BASE_SUBDOMAIN:-magic}
+        VITE_SITE_ADMIN_BASE_SUBDOMAIN: ${SITE_ADMIN_BASE_SUBDOMAIN:-magic-admin}
+        VITE_SITE_FRONTEND_URL: ${SITE_FRONTEND_URL:-https://magic.shyfai.cn}
+    container_name: image2-admin-web
+    restart: unless-stopped
+    depends_on:
+      admin-server:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${ADMIN_WEB_PORT:-3001}:80"
+
+  team-web:
+    build:
+      context: ./team-web
+    container_name: image2-team-web
+    restart: unless-stopped
+    depends_on:
+      user-server:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${TEAM_WEB_PORT:-3003}:80"
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

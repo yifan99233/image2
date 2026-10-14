@@ -1,0 +1,32 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1024" height="1024" fill="white"/>
+  <defs>
+    <linearGradient id="gradTop" x1="270" y1="460" x2="790" y2="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#305DFF"/>
+      <stop offset="0.52" stop-color="#8155FF"/>
+      <stop offset="1" stop-color="#E647FF"/>
+    </linearGradient>
+    <linearGradient id="gradMid" x1="290" y1="660" x2="740" y2="430" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#304BFF"/>
+      <stop offset="0.55" stop-color="#4D78FF"/>
+      <stop offset="1" stop-color="#8C96FF"/>
+    </linearGradient>
+    <linearGradient id="gradBottom" x1="400" y1="675" x2="660" y2="535" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00C6FF"/>
+      <stop offset="1" stop-color="#28E2F2"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Top ribbon -->
+  <path d="M346 486L503 329C515 317 531 310 548 310H786L731 365H561C553 365 546 368 540 374L425 486H346Z" fill="url(#gradTop)"/>
+
+  <!-- Middle ribbon -->
+  <path d="M293 632L382 543C388 537 396 534 405 534H445C455 534 464 530 471 523L566 429C573 422 583 418 593 418H731L682 467H607C599 467 592 470 586 476L493 569C484 578 472 583 459 583H416L366 632H293Z" fill="url(#gradMid)"/>
+
+  <!-- Bottom ribbon -->
+  <path d="M413 632L531 514C537 508 545 505 554 505H626L516 615C505 626 491 632 476 632H413Z" fill="url(#gradBottom)"/>
+
+  <!-- Subtle edge highlights -->
+  <path d="M503 329C515 317 531 310 548 310H786L776 320H550C535 320 520 326 509 337L363 486H346L503 329Z" fill="white" opacity="0.28"/>
+  <path d="M382 543C388 537 396 534 405 534H445C455 534 464 530 471 523L566 429C573 422 583 418 593 418H731L721 428H594C586 428 578 431 572 437L477 531C468 540 456 544 445 544H407C400 544 393 547 388 552L309 632H293L382 543Z" fill="white" opacity="0.20"/>
+</svg>

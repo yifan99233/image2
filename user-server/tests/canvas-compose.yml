@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16.14-alpine
+    environment:
+      POSTGRES_DB: image2_canvas_test
+      POSTGRES_USER: canvas_test
+      POSTGRES_PASSWORD: canvas_test
+    ports:
+      - "127.0.0.1:55439:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U canvas_test -d image2_canvas_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 20

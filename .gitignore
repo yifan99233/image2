@@ -1,0 +1,27 @@
+.idea
+user-server/storage/
+.DS_Store
+.test-user-server.db
+.env
+.env.local
+.env.*.local
+
+# Local build and packaging artifacts
+node_modules/
+dist/
+*.egg-info/
+
+# Temporary generated image artifact
+/a2e541e06ab849139f3a97d37ff654ea.png
+
+# Generated canvas bundle, built from canvas-web
+/user-web/public/canvas-app/
+/canvas-web/*.tsbuildinfo
+
+# Local data dumps and generated artifacts
+/all_data.sql
+/initial_data.sql
+/outputs/
+/test-output/
+__pycache__/
+*.py[cod]

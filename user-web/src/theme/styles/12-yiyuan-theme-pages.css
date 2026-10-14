@@ -1,0 +1,737 @@
+:root[data-theme="light"] .app-shell--yiyuan .usage-table td:nth-child(1),
+:root[data-theme="light"] .app-shell--yiyuan .usage-table td:nth-child(2),
+:root[data-theme="light"] .app-shell--yiyuan .usage-table td:nth-child(5),
+:root[data-theme="light"] .app-shell--yiyuan .usage-table td:nth-child(6),
+:root[data-theme="light"] .app-shell--yiyuan .usage-table td:nth-child(7),
+:root[data-theme="light"] .app-shell--yiyuan .usage-table td:nth-child(8) {
+  color: #111827;
+  font-weight: 800;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .usage-table tbody tr:hover td {
+  background: #f8fafc;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .plan-card {
+  background: #ffffff;
+  border-color: #d8e0ea;
+  color: #111827;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .plan-card:hover {
+  background: #f8fbff;
+  border-color: #93c5fd;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .plan-card--active {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  box-shadow: 0 14px 34px rgb(14 165 233 / 16%);
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .plan-card strong,
+:root[data-theme="light"] .app-shell--yiyuan .plan-card__price {
+  color: #111827;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .plan-card small {
+  color: #64748b;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .plan-card em {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .payment-summary strong,
+:root[data-theme="light"] .app-shell--yiyuan .qr-box strong {
+  color: #111827;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .payment-summary span,
+:root[data-theme="light"] .app-shell--yiyuan .qr-box span {
+  color: #64748b;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .qr-box {
+  background: #f8fafc;
+  border-color: #d8e0ea;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .payment-empty-note {
+  background: #f8fafc;
+  border-color: #d8e0ea;
+  color: #64748b;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .tool-title {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .tool-title > span,
+:root[data-theme="light"] .app-shell--yiyuan .tool-step__head span {
+  background: #e0f2fe;
+  border-color: #bae6fd;
+  color: #0369a1;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .tool-title h1,
+:root[data-theme="light"] .app-shell--yiyuan .result-header h2,
+:root[data-theme="light"] .app-shell--yiyuan .tool-step__head strong,
+:root[data-theme="light"] .app-shell--yiyuan .task-meta__value,
+:root[data-theme="light"] .app-shell--yiyuan .comparison-empty h3,
+:root[data-theme="light"] .app-shell--yiyuan .placeholder-page h1,
+:root[data-theme="light"] .app-shell--yiyuan .placeholder-page h2 {
+  color: #111827;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .tool-title p,
+:root[data-theme="light"] .app-shell--yiyuan .result-header p,
+:root[data-theme="light"] .app-shell--yiyuan .form-grid label span,
+:root[data-theme="light"] .app-shell--yiyuan .upload-field__meta,
+:root[data-theme="light"] .app-shell--yiyuan .generate-bar p,
+:root[data-theme="light"] .app-shell--yiyuan .task-meta__label,
+:root[data-theme="light"] .app-shell--yiyuan .comparison figcaption,
+:root[data-theme="light"] .app-shell--yiyuan .comparison-empty p,
+:root[data-theme="light"] .app-shell--yiyuan .placeholder-page p {
+  color: #64748b;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .tool-step,
+:root[data-theme="light"] .app-shell--yiyuan .upload-dropzone,
+:root[data-theme="light"] .app-shell--yiyuan .selected-model,
+:root[data-theme="light"] .app-shell--yiyuan .comparison figure {
+  background: #ffffff;
+  border-color: #d8e0ea;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .upload-dropzone {
+  color: #111827;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .upload-dropzone:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .upload-dropzone strong {
+  color: #111827;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .upload-dropzone small,
+:root[data-theme="light"] .app-shell--yiyuan .upload-preview__meta small {
+  color: #64748b;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .upload-dropzone span {
+  background: #e0f2fe;
+  color: #0891b2;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .config-field > span,
+:root[data-theme="light"] .app-shell--yiyuan .tool-step__head small {
+  color: #64748b;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .select-field button,
+:root[data-theme="light"] .app-shell--yiyuan .prompt-box textarea,
+:root[data-theme="light"] .app-shell--yiyuan .form-grid input,
+:root[data-theme="light"] .app-shell--yiyuan .form-grid select,
+:root[data-theme="light"] .app-shell--yiyuan .config-field select,
+:root[data-theme="light"] .app-shell--yiyuan .model-select__trigger,
+:root[data-theme="light"] .app-shell--yiyuan .prompt-input {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #111827;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .select-field button:focus-visible,
+:root[data-theme="light"] .app-shell--yiyuan .prompt-box textarea:focus-visible,
+:root[data-theme="light"] .app-shell--yiyuan .form-grid input:focus-visible,
+:root[data-theme="light"] .app-shell--yiyuan .form-grid select:focus-visible,
+:root[data-theme="light"] .app-shell--yiyuan .config-field select:focus-visible,
+:root[data-theme="light"] .app-shell--yiyuan .model-select__trigger:focus-visible,
+:root[data-theme="light"] .app-shell--yiyuan .prompt-input:focus-visible {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgb(37 99 235 / 12%);
+  outline: none;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .model-select__trigger:hover,
+:root[data-theme="light"] .app-shell--yiyuan .model-select__trigger.is-open {
+  background: #f8fafc;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 4px rgb(37 99 235 / 10%);
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .model-select__trigger > span,
+:root[data-theme="light"] .app-shell--yiyuan .model-select__option strong {
+  color: #111827;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .model-select__trigger svg {
+  color: #64748b;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .model-select__menu {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 18px 44px rgb(15 23 42 / 14%);
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .model-select__option {
+  color: #111827;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .model-select__option:hover,
+:root[data-theme="light"] .app-shell--yiyuan .model-select__option.is-selected {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .model-select__option small {
+  color: #64748b;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .model-select__option em {
+  background: #e0f2fe;
+  border-color: #bae6fd;
+  color: #0369a1;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .prompt-input {
+  min-height: 132px;
+  resize: vertical;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .prompt-input::placeholder {
+  color: #94a3b8;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .upload-dropzone {
+  background: #f8fafc;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .upload-dropzone:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .comparison__media {
+  background: #f1f5f9;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .creation-card__top,
+:root[data-theme="light"] .app-shell--yiyuan .creation-prompt {
+  border-color: #e2e8f0;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .creation-prompt {
+  color: #475569;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .task-meta__value--accent {
+  color: #0f7ea0;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .status-badge--succeeded {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .status-badge--queued,
+:root[data-theme="light"] .app-shell--yiyuan .status-badge--running {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .task-button,
+:root[data-theme="light"] .app-shell--yiyuan .result-header .button {
+  background: #ffffff;
+  border-color: #d8e0ea;
+  color: #334155;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .task-button:hover:not(:disabled),
+:root[data-theme="light"] .app-shell--yiyuan .result-header .button:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .task-button--green,
+:root[data-theme="light"] .app-shell--yiyuan .task-button--cyan {
+  color: #0891b2;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .task-button--blue {
+  color: #2563eb;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .task-button--orange {
+  color: #d97706;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .task-button--red,
+:root[data-theme="light"] .app-shell--yiyuan .danger-icon {
+  color: #dc2626;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .tool-menu {
+  background: #ffffff;
+  border-color: #d8e0ea;
+  box-shadow: 0 18px 44px rgb(15 23 42 / 14%);
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .tool-menu button {
+  color: #334155;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .tool-menu button:hover {
+  background: #f1f5f9;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .generate-bar {
+  background: rgb(255 255 255 / 92%);
+  border-color: #bfdbfe;
+  box-shadow: 0 -12px 36px rgb(15 23 42 / 8%);
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .generate-bar .button--primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash,
+:root[data-theme="light"] .app-shell--yiyuan .page-surface {
+  background:
+    radial-gradient(circle at 18% 0%, rgb(219 234 254 / 58%), transparent 30%),
+    #f8fafc;
+  color: #111827;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash {
+  min-height: calc(100vh - 50px);
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-hero {
+  background: #ffffff;
+  border: 1px solid #d8e0ea;
+  box-shadow: 0 22px 54px rgb(15 23 42 / 10%);
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-hero__bg {
+  background:
+    radial-gradient(ellipse at 18% 24%, rgb(219 234 254 / 82%), transparent 52%),
+    radial-gradient(ellipse at 80% 72%, rgb(224 242 254 / 78%), transparent 44%),
+    linear-gradient(145deg, #ffffff 0%, #f8fafc 52%, #eef4ff 100%);
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-hero__kicker {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-hero-banner {
+  background:
+    linear-gradient(135deg, rgb(239 246 255 / 94%), rgb(255 247 237 / 84%)),
+    #ffffff;
+  border-color: #bfdbfe;
+  box-shadow: 0 18px 42px rgb(37 99 235 / 10%);
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-hero-banner__content > span {
+  color: #2563eb;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-hero-banner__content strong {
+  color: #111827;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-hero-banner__content p {
+  color: #475569;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-hero-banner__content em {
+  background: #ffffff;
+  border-color: #dbeafe;
+  color: #1d4ed8;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-hero h1,
+:root[data-theme="light"] .app-shell--yiyuan .dash-section__head h2,
+:root[data-theme="light"] .app-shell--yiyuan .dash-feat h3,
+:root[data-theme="light"] .app-shell--yiyuan .dash-stat strong,
+:root[data-theme="light"] .app-shell--yiyuan .dash-quick strong,
+:root[data-theme="light"] .app-shell--yiyuan .page-header h1,
+:root[data-theme="light"] .app-shell--yiyuan .gallery-card h2,
+:root[data-theme="light"] .app-shell--yiyuan .compose-panel h1,
+:root[data-theme="light"] .app-shell--yiyuan .compose-panel h2,
+:root[data-theme="light"] .app-shell--yiyuan .result-preview-panel h2,
+:root[data-theme="light"] .app-shell--yiyuan .utility-shell h1,
+:root[data-theme="light"] .app-shell--yiyuan .utility-shell h2,
+:root[data-theme="light"] .app-shell--yiyuan .work-card p,
+:root[data-theme="light"] .app-shell--yiyuan .empty-state h3,
+:root[data-theme="light"] .app-shell--yiyuan .tool-result-card strong {
+  color: #111827;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-hero__body > p,
+:root[data-theme="light"] .app-shell--yiyuan .dash-stat,
+:root[data-theme="light"] .app-shell--yiyuan .dash-stat span,
+:root[data-theme="light"] .app-shell--yiyuan .dash-section__head span,
+:root[data-theme="light"] .app-shell--yiyuan .dash-quick span,
+:root[data-theme="light"] .app-shell--yiyuan .dash-empty,
+:root[data-theme="light"] .app-shell--yiyuan .dash-empty p,
+:root[data-theme="light"] .app-shell--yiyuan .page-header p,
+:root[data-theme="light"] .app-shell--yiyuan .gallery-card p,
+:root[data-theme="light"] .app-shell--yiyuan .field-block span,
+:root[data-theme="light"] .app-shell--yiyuan .form-grid span,
+:root[data-theme="light"] .app-shell--yiyuan .result-preview-panel p,
+:root[data-theme="light"] .app-shell--yiyuan .tool-result-card__top span:not(.status-badge),
+:root[data-theme="light"] .app-shell--yiyuan .tool-result-card__state span,
+:root[data-theme="light"] .app-shell--yiyuan .work-card__meta,
+:root[data-theme="light"] .app-shell--yiyuan .work-card__meta time,
+:root[data-theme="light"] .app-shell--yiyuan .empty-state p,
+:root[data-theme="light"] .app-shell--yiyuan .list-state {
+  color: #64748b;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-feat p {
+  color: #475569;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-case-video,
+:root[data-theme="light"] .app-shell--yiyuan .lead-video-card {
+  background: rgb(255 255 255 / 88%);
+  border-color: #cbd5e1;
+  box-shadow: 0 18px 44px rgb(15 23 42 / 7%);
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-case-video {
+  box-shadow: none;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-case-video strong {
+  color: #111827;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-case-video p {
+  color: #64748b;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .aspect-choice__preview i {
+  border-color: rgb(15 23 42 / 12%);
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-feat,
+:root[data-theme="light"] .app-shell--yiyuan .dash-stat,
+:root[data-theme="light"] .app-shell--yiyuan .dash-quick,
+:root[data-theme="light"] .app-shell--yiyuan .dash-empty,
+:root[data-theme="light"] .app-shell--yiyuan .gallery-card,
+:root[data-theme="light"] .app-shell--yiyuan .compose-panel,
+:root[data-theme="light"] .app-shell--yiyuan .result-preview-panel,
+:root[data-theme="light"] .app-shell--yiyuan .utility-shell,
+:root[data-theme="light"] .app-shell--yiyuan .support-hero,
+:root[data-theme="light"] .app-shell--yiyuan .support-contact-card,
+:root[data-theme="light"] .app-shell--yiyuan .lead-module-hero,
+:root[data-theme="light"] .app-shell--yiyuan .lead-module-entry,
+:root[data-theme="light"] .app-shell--yiyuan .lead-module-card,
+:root[data-theme="light"] .app-shell--yiyuan .invite-hero,
+:root[data-theme="light"] .app-shell--yiyuan .invite-rule-grid article,
+:root[data-theme="light"] .app-shell--yiyuan .invite-link-panel,
+:root[data-theme="light"] .app-shell--yiyuan .invite-data-panel,
+:root[data-theme="light"] .app-shell--yiyuan .signin-records,
+:root[data-theme="light"] .app-shell--yiyuan .tool-result-card,
+:root[data-theme="light"] .app-shell--yiyuan .work-card,
+:root[data-theme="light"] .app-shell--yiyuan .ledger-summary article,
+:root[data-theme="light"] .app-shell--yiyuan .list-state {
+  background: rgb(255 255 255 / 88%);
+  border-color: #cbd5e1;
+  box-shadow: 0 18px 44px rgb(15 23 42 / 7%);
+  color: #111827;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .empty-state,
+:root[data-theme="light"] .app-shell--yiyuan .dash-empty {
+  align-content: center;
+  background:
+    linear-gradient(180deg, rgb(248 250 252 / 96%), rgb(255 255 255 / 96%));
+  border: 1px dashed #cbd5e1;
+  border-radius: 18px;
+  box-shadow: none;
+  color: #64748b;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  margin: 0;
+  min-height: 220px;
+  padding: 36px 24px;
+  text-align: center;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .empty-state svg,
+:root[data-theme="light"] .app-shell--yiyuan .dash-empty svg {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 14px;
+  color: #2563eb;
+  height: 56px;
+  padding: 12px;
+  width: 56px;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .empty-state h3,
+:root[data-theme="light"] .app-shell--yiyuan .dash-empty h3 {
+  color: #111827;
+  font-size: 18px;
+  line-height: 1.25;
+  margin: 0;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .empty-state p,
+:root[data-theme="light"] .app-shell--yiyuan .dash-empty p {
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.7;
+  margin: 0;
+  max-width: 520px;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .gallery-grid + .empty-state,
+:root[data-theme="light"] .app-shell--yiyuan .page-surface > .empty-state {
+  max-width: none;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .result-preview-panel > .empty-state {
+  align-self: stretch;
+  min-height: 300px;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .compose-layout .result-preview-panel > .empty-state {
+  margin-top: 4px;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-feat:hover,
+:root[data-theme="light"] .app-shell--yiyuan .dash-quick:hover,
+:root[data-theme="light"] .app-shell--yiyuan .gallery-card:hover,
+:root[data-theme="light"] .app-shell--yiyuan .work-card:hover,
+:root[data-theme="light"] .app-shell--yiyuan .support-contact-card:hover,
+:root[data-theme="light"] .app-shell--yiyuan .invite-rule-grid article:hover {
+  background: #ffffff;
+  border-color: #bfdbfe;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .gallery-card__media {
+  background:
+    linear-gradient(180deg, rgb(148 163 184 / 12%) 1px, transparent 1px),
+    #eef4ff;
+  border-bottom: 1px solid #d8e0ea;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .gallery-card--compare .gallery-card__media::after {
+  background: #bfdbfe;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .gallery-card__image {
+  background: #ffffff;
+  border-color: #cbd5e1;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .gallery-card__image--output {
+  border-color: #cbd5e1;
+  box-shadow: none;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .gallery-card__image figcaption {
+  background: rgb(15 23 42 / 78%);
+  border-color: rgb(255 255 255 / 42%);
+  color: #ffffff;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .gallery-card__image--output figcaption {
+  background: rgb(15 23 42 / 78%);
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .support-shell,
+:root[data-theme="light"] .app-shell--yiyuan .lead-module-shell,
+:root[data-theme="light"] .app-shell--yiyuan .invite-shell {
+  max-width: 1120px;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .support-hero,
+:root[data-theme="light"] .app-shell--yiyuan .lead-module-hero,
+:root[data-theme="light"] .app-shell--yiyuan .invite-hero {
+  background:
+    radial-gradient(circle at 82% 26%, rgb(219 234 254 / 72%), transparent 34%),
+    #ffffff;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .support-hero h1,
+:root[data-theme="light"] .app-shell--yiyuan .support-contact-card strong,
+:root[data-theme="light"] .app-shell--yiyuan .lead-module-hero h1,
+:root[data-theme="light"] .app-shell--yiyuan .lead-module-card h2,
+:root[data-theme="light"] .app-shell--yiyuan .invite-hero h1,
+:root[data-theme="light"] .app-shell--yiyuan .invite-rule-grid strong,
+:root[data-theme="light"] .app-shell--yiyuan .invite-link-panel strong,
+:root[data-theme="light"] .app-shell--yiyuan .invite-data-panel h2,
+:root[data-theme="light"] .app-shell--yiyuan .signin-records h2,
+:root[data-theme="light"] .app-shell--yiyuan .signin-record-row strong,
+:root[data-theme="light"] .app-shell--yiyuan .invite-data-row strong {
+  color: #111827;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .support-hero p,
+:root[data-theme="light"] .app-shell--yiyuan .support-contact-card p,
+:root[data-theme="light"] .app-shell--yiyuan .support-contact-card span,
+:root[data-theme="light"] .app-shell--yiyuan .lead-module-hero p,
+:root[data-theme="light"] .app-shell--yiyuan .lead-module-card p,
+:root[data-theme="light"] .app-shell--yiyuan .lead-module-card span,
+:root[data-theme="light"] .app-shell--yiyuan .invite-hero p,
+:root[data-theme="light"] .app-shell--yiyuan .invite-rule-grid p,
+:root[data-theme="light"] .app-shell--yiyuan .invite-rule-grid span,
+:root[data-theme="light"] .app-shell--yiyuan .invite-link-panel span,
+:root[data-theme="light"] .app-shell--yiyuan .invite-data-row span,
+:root[data-theme="light"] .app-shell--yiyuan .invite-data-row em,
+:root[data-theme="light"] .app-shell--yiyuan .signin-record-row span,
+:root[data-theme="light"] .app-shell--yiyuan .section-heading p {
+  color: #64748b;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .invite-kicker,
+:root[data-theme="light"] .app-shell--yiyuan .support-contact-card strong,
+:root[data-theme="light"] .app-shell--yiyuan .lead-module-card strong,
+:root[data-theme="light"] .app-shell--yiyuan .invite-code-card strong,
+:root[data-theme="light"] .app-shell--yiyuan .invite-data-row b,
+:root[data-theme="light"] .app-shell--yiyuan .signin-record-row b {
+  color: #2563eb;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .utility-icon,
+:root[data-theme="light"] .app-shell--yiyuan .invite-code-card {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #2563eb;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .support-qrcode,
+:root[data-theme="light"] .app-shell--yiyuan .lead-module-qr {
+  border-color: #dbeafe;
+  box-shadow: 0 16px 36px rgb(15 23 42 / 8%);
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .lead-application-panel,
+:root[data-theme="light"] .app-shell--yiyuan .lead-application-contact {
+  background: #ffffff;
+  border-color: #dbeafe;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .lead-application-form__head h2,
+:root[data-theme="light"] .app-shell--yiyuan .lead-form-field span,
+:root[data-theme="light"] .app-shell--yiyuan .lead-application-contact strong {
+  color: #111827;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .lead-form-field input,
+:root[data-theme="light"] .app-shell--yiyuan .lead-form-field textarea {
+  background: #f8fbff;
+  border-color: #cbd5e1;
+  color: #111827;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .lead-application-status {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+  color: #047857;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .button--primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  box-shadow: 0 14px 28px rgb(37 99 235 / 18%);
+  color: #ffffff;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .button--primary:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #ffffff;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .support-action--primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  box-shadow: 0 14px 28px rgb(37 99 235 / 16%);
+  color: #ffffff;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .support-action--primary:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #ffffff;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .support-action.button--secondary,
+:root[data-theme="light"] .app-shell--yiyuan .invite-link-panel .button,
+:root[data-theme="light"] .app-shell--yiyuan .invite-link-panel .button--primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  box-shadow: 0 14px 28px rgb(37 99 235 / 16%);
+  color: #ffffff;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .support-action.button--secondary:hover,
+:root[data-theme="light"] .app-shell--yiyuan .invite-link-panel .button:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .invite-data-row,
+:root[data-theme="light"] .app-shell--yiyuan .signin-record-row {
+  border-color: #e2e8f0;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .signin-message--success {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+  color: #047857;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .signin-message--error {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #be123c;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-cta--primary,
+:root[data-theme="light"] .app-shell--yiyuan .compose-panel .button--primary,
+:root[data-theme="light"] .app-shell--yiyuan .compose-panel > .button,
+:root[data-theme="light"] .app-shell--yiyuan .page-actions .button--primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  box-shadow: 0 14px 28px rgb(37 99 235 / 18%);
+  color: #ffffff;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-cta--secondary {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-cta--secondary:hover {
+  background: #eff6ff;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-stat--link,
+:root[data-theme="light"] .app-shell--yiyuan .tool-cost {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+:root[data-theme="light"] .app-shell--yiyuan .dash-stat--link strong,
+:root[data-theme="light"] .app-shell--yiyuan .dash-stat--link svg {
+  color: #1d4ed8;
+}

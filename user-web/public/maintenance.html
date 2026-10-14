@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>系统升级中｜艺源</title>
+    <style>
+      :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f7fb; color: #172033; }
+      * { box-sizing: border-box; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 15% 10%, #e8f1ff, transparent 42%), #f5f7fb; }
+      main { width: min(100%, 560px); padding: 48px 40px; border: 1px solid #e1e8f5; border-radius: 24px; background: rgba(255,255,255,.94); box-shadow: 0 24px 80px rgba(34, 63, 112, .12); text-align: center; }
+      .mark { width: 64px; height: 64px; margin: 0 auto 24px; display: grid; place-items: center; border-radius: 18px; background: linear-gradient(135deg, #3e7bff, #7c5cff); color: #fff; font-size: 28px; font-weight: 800; box-shadow: 0 12px 30px rgba(73, 100, 236, .28); }
+      h1 { margin: 0; font-size: clamp(26px, 5vw, 34px); letter-spacing: -.02em; }
+      p { margin: 16px 0 0; color: #63708a; line-height: 1.8; }
+      .status { display: inline-flex; align-items: center; gap: 8px; margin-top: 28px; padding: 9px 14px; border-radius: 999px; background: #eef4ff; color: #3565d6; font-size: 14px; font-weight: 600; }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: #4c7dff; box-shadow: 0 0 0 5px rgba(76,125,255,.12); animation: pulse 1.6s ease-in-out infinite; }
+      small { display: block; margin-top: 28px; color: #9aa5b8; }
+      @keyframes pulse { 50% { opacity: .35; transform: scale(.8); } }
+      @media (max-width: 520px) { main { padding: 40px 24px; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="mark" aria-hidden="true">艺</div>
+      <h1>系统正在升级</h1>
+      <p>我们正在完成一次短暂的系统升级，创作、素材和账户服务会很快恢复。请稍后刷新页面。</p>
+      <div class="status"><span class="dot" aria-hidden="true"></span>升级进行中</div>
+      <small>感谢你的耐心等待</small>
+    </main>
+  </body>
+</html>

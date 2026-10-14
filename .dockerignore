@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/.venv
+**/__pycache__
+**/.env
+**/.env.*
+.git
+**/storage
+user-web/public/canvas-app
+canvas-experience
+**/*.tsbuildinfo

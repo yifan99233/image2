@@ -1,0 +1,9 @@
+@import "./styles/01-foundations-layout.css";
+@import "./styles/02-pages-tables.css";
+@import "./styles/03-dialogs-responsive.css";
+
+.redemption-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; align-items: end; }
+.redemption-form p { grid-column: 1 / -1; }
+
+.redemption-page { display: grid; gap: 18px; }
+.redemption-page > p { margin: 0; }
