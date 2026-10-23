@@ -1,6 +1,7 @@
+import { LoadingIndicator } from "@/components/ui/LoadingIndicator";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, RotateCcw, X } from "lucide-react";
+import { RotateCcw, X } from "lucide-react";
 import { imageTaskService } from "@/services/imageTasks";
 import { ApiError } from "@/services/apiError";
 import type { ImageBatchRetryQuote, ImageBatchSubmission } from "@/types/api";
@@ -148,7 +149,7 @@ export function BatchRetryDialog({
             {error}
           </p>
         ) : null}
-        {submitting ? <div className="batch-retry-dialog__status" role="status"><Loader2 size={16} className="spin-icon" /><span>正在接收重试请求…</span></div> : null}
+        {submitting ? <div className="batch-retry-dialog__status" role="status"><LoadingIndicator size={16} className="spin-icon" /><span>正在接收重试请求…</span></div> : null}
         <div className="dialog-actions">
           <button className="task-button" type="button" disabled={submitting} onClick={onClose}>
             取消
@@ -168,7 +169,7 @@ export function BatchRetryDialog({
             disabled={loading || submitting || !quote}
             onClick={() => void submit()}
           >
-            {submitting ? <Loader2 size={15} className="spin-icon" /> : <RotateCcw size={15} />}
+            {submitting ? <LoadingIndicator size={15} className="spin-icon" /> : <RotateCcw size={15} />}
             {submitting ? "提交中…" : "确认重试"}
           </button>
         </div>

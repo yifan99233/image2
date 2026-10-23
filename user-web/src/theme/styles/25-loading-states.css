@@ -1,0 +1,29 @@
+.loading-state { min-width: 0; width: 100%; align-self: start; }
+.loading-state__caption { display: flex; align-items: center; gap: 9px; padding: 12px 2px; color: var(--text-muted); font-size: 13px; font-weight: 400; }
+.loading-state__spinner { width: 16px; height: 16px; flex: 0 0 16px; border: 2px solid color-mix(in srgb, var(--primary) 15%, transparent); border-top-color: var(--primary); border-right-color: var(--primary); border-radius: 50%; animation: loading-orbit .85s linear infinite; }
+.loading-state__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 14px; }
+.loading-state--comparison .loading-state__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.loading-state__card { overflow: hidden; border-radius: 13px; background: var(--surface); border: 1px solid var(--border); padding: 10px; }
+.loading-state__media { display: flex; gap: 8px; }
+.loading-state__image { display: block; flex: 1; min-width: 0; height: 160px; border-radius: 8px; }
+.loading-state__lines { display: grid; gap: 8px; padding: 14px 3px 6px; }
+.loading-state__lines > span { height: 10px; border-radius: 5px; width: 72%; }
+.loading-state__lines > span + span { width: 46%; }
+.loading-state__image, .loading-state__lines > span {
+  position: relative; overflow: hidden; background: color-mix(in srgb, var(--primary) 6%, var(--surface-muted));
+}
+.loading-state__image::after, .loading-state__lines > span::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(100deg, transparent 10%, color-mix(in srgb, var(--surface) 72%, transparent) 50%, transparent 90%);
+  animation: loading-shimmer 1.8s ease-in-out infinite;
+}
+@keyframes loading-orbit { to { transform: rotate(360deg); } }
+@keyframes loading-shimmer { to { transform: translateX(100%); } }
+@media (max-width: 767px) {
+  .loading-state__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .loading-state--comparison .loading-state__grid { grid-template-columns: minmax(0, 1fr); }
+  .loading-state__image { height: 130px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-state__spinner, .loading-state__image::after, .loading-state__lines > span::after { animation: none; }
+}

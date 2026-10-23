@@ -1,0 +1,88 @@
+/* Shared optical weight; feature icons add a quiet second tone. */
+:root[data-theme] :is(.app-shell, .auth-layout) .lucide {
+  stroke-width: 1.7;
+  flex-shrink: 0;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .nav-item {
+  padding-block: 6px;
+  gap: 10px;
+  border-radius: 11px;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .nav-item .nav-item__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 6%, transparent);
+  transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .nav-item .nav-item__icon svg {
+  width: 20px;
+  height: 20px;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .nav-item--active .nav-item__icon {
+  color: var(--primary);
+  background: var(--studio-panel);
+  box-shadow: 0 2px 5px color-mix(in srgb, var(--primary) 10%, transparent);
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .nav-item:hover .nav-item__icon {
+  color: var(--primary);
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .sidebar--collapsed .nav-item {
+  padding: 7px;
+}
+.studio-tool__icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 15px;
+  background: linear-gradient(145deg,
+    color-mix(in srgb, var(--tool-color) 7%, var(--studio-panel)),
+    color-mix(in srgb, var(--tool-color) 17%, var(--studio-panel)));
+  border: 1px solid color-mix(in srgb, var(--tool-color) 18%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--studio-panel) 80%, transparent),
+    0 3px 7px color-mix(in srgb, var(--tool-color) 8%, transparent);
+}
+.studio-tool__icon svg { width: 27px; height: 27px; }
+.studio-metric__icon,
+.studio-empty__icon {
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, transparent);
+  border-radius: 12px;
+}
+.mobile-navigation > :is(a, button) > svg {
+  box-sizing: content-box;
+  padding: 4px 13px;
+  margin-block: -3px;
+  border-radius: 10px;
+}
+.mobile-navigation > [aria-current="page"] > svg {
+  background: var(--primary-soft);
+}
+@media (max-width: 767px), (hover: none) and (pointer: coarse) and (max-width: 1023px) {
+  .studio-tool__icon { width: 44px; height: 44px; border-radius: 13px; }
+  .studio-tool__icon svg { width: 25px; height: 25px; }
+  :root[data-theme] .app-shell.app-shell--yiyuan .nav-item { min-height: 46px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme] .app-shell.app-shell--yiyuan .nav-item .nav-item__icon { transition: none; }
+}
+
+/* Feature cards have room to communicate the complete creation process. */
+.studio-tool__top { gap: 8px; }
+.creation-process-icon {
+  display: block;
+  width: 132px;
+  max-width: 100%;
+  height: auto;
+  min-width: 0;
+  flex: 0 1 132px;
+  color: var(--tool-color);
+  overflow: visible;
+}
+.studio-tool__top > :is(.studio-tool__badge, .studio-tool__arrow) { flex-shrink: 0; }
+@media (max-width: 767px), (hover: none) and (pointer: coarse) and (max-width: 1023px) {
+  .creation-process-icon { width: 112px; flex-basis: 112px; }
+  .studio-tool__top > :is(.studio-tool__badge, .studio-tool__arrow) { display: none; }
+}

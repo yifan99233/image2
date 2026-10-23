@@ -1,5 +1,7 @@
+import { LoadingIndicator } from "@/components/ui/LoadingIndicator";
+import { LoadingState } from "@/components/ui/LoadingState";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Download, Loader2, RefreshCw, RotateCcw } from "lucide-react";
+import { Download, RefreshCw, RotateCcw } from "lucide-react";
 import { BatchRetryDialog } from "@/components/batch/BatchRetryDialog";
 import { BatchTaskDetails } from "@/components/batch/BatchTaskDetails";
 import { imageTaskService } from "@/services/imageTasks";
@@ -223,9 +225,7 @@ export function BatchTaskPanel({
         </div>
       ) : null}
       {loading && !batches.length ? (
-        <p className="batch-progress__hint" role="status">
-          正在加载批次…
-        </p>
+        <LoadingState label="正在加载批次…" />
       ) : null}
       {!loading && !error && !pollError && !batches.length ? (
         <p className="batch-progress__hint">提交批量任务后，可在这里查看整批进度并打包下载。</p>
@@ -325,7 +325,7 @@ export function BatchTaskPanel({
                 disabled={(!batch.downloadable_count && (workType !== "batch_generate" || !batch.failed_count)) || batch.latest_task_id === 0 || downloading.length > 0}
                 onClick={() => void download(batch)}
               >
-                {busy ? <Loader2 size={15} className="spin-icon" /> : <Download size={15} />}
+                {busy ? <LoadingIndicator size={15} className="spin-icon" /> : <Download size={15} />}
                 {busy ? "下载中…" : !batch.downloadable_count && batch.failed_count && workType === "batch_generate" ? "下载失败汇总" : `打包下载已成功（${batch.downloadable_count}）`}
               </button>
               {batch.failed_count ? (
@@ -385,6 +385,7 @@ export function BatchTaskPanel({
           disabled={loading}
           onClick={() => void loadMore()}
         >
+          {loading && <LoadingIndicator size={15} />}
           {loading ? "加载中…" : "加载更多批次"}
         </button>
       ) : null}
@@ -472,7 +473,7 @@ function BatchFailureList({ batchId, failedCount }: { batchId: string; failedCou
         </p>
       ) : null}
       {loading ? (
-        <p role="status">正在加载失败详情…</p>
+        <LoadingState label="正在加载失败详情…" />
       ) : !tasks.length && !error ? (
         <p>暂无可见失败记录</p>
       ) : null}

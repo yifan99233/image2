@@ -1,0 +1,98 @@
+/* Surface hierarchy and a consistent, restrained palette for creative tools. */
+:root[data-theme="light"] .app-shell.app-shell--yiyuan {
+  --bg: #f0f3fa;
+  --surface-muted: #f4f6fc;
+  --border: #e0e5f1;
+  --primary: #5959ce;
+  --primary-strong: #4847b8;
+  --primary-soft: #eeedff;
+  --feature-blue: #4b6bd0;
+  --feature-violet: #8655bc;
+  --feature-teal: #267f78;
+  --feature-amber: #a36a2b;
+  --depth-shadow: 0 4px 16px rgb(40 51 100 / 5%);
+}
+:root[data-theme="dark"] .app-shell.app-shell--yiyuan {
+  --feature-blue: #94afff;
+  --feature-violet: #c1a0ec;
+  --feature-teal: #78cabe;
+  --feature-amber: #e0b478;
+  --depth-shadow: 0 4px 16px rgb(0 0 0 / 14%);
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .app-shell__main {
+  background: radial-gradient(ellipse at 5% 0%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 55%), var(--bg);
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .sidebar {
+  background: linear-gradient(180deg, var(--studio-panel) 45%, color-mix(in srgb, var(--primary) 4%, var(--studio-panel)));
+}
+.studio-tool--blue { --tool-color: var(--feature-blue); }
+.studio-tool--violet { --tool-color: var(--feature-violet); }
+.studio-tool--teal { --tool-color: var(--feature-teal); }
+.studio-tool--amber { --tool-color: var(--feature-amber); }
+:root[data-theme] .app-shell.app-shell--yiyuan .nav-item { --nav-color: var(--primary); }
+:root[data-theme] .app-shell.app-shell--yiyuan .nav-item:is([href="/create/edit"], [href="/create/canvas"]) { --nav-color: var(--feature-blue); }
+:root[data-theme] .app-shell.app-shell--yiyuan .nav-item:is([href="/create/text-to-image"], [href="/gallery"], [href*="video"]) { --nav-color: var(--feature-violet); }
+:root[data-theme] .app-shell.app-shell--yiyuan .nav-item:is([href="/create/batch-generate"], [href="/materials"]) { --nav-color: var(--feature-teal); }
+:root[data-theme] .app-shell.app-shell--yiyuan .nav-item:is([href="/create/batch-edit"], [href="/leads"]) { --nav-color: var(--feature-amber); }
+:root[data-theme] .app-shell.app-shell--yiyuan .nav-item .nav-item__icon {
+  color: var(--nav-color);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--nav-color) 7%, var(--studio-panel)), color-mix(in srgb, var(--nav-color) 16%, var(--studio-panel)));
+  border: 1px solid color-mix(in srgb, var(--nav-color) 12%, transparent);
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .nav-item--active {
+  color: var(--nav-color);
+  background: linear-gradient(100deg, color-mix(in srgb, var(--nav-color) 14%, var(--studio-panel)), color-mix(in srgb, var(--nav-color) 5%, var(--studio-panel)));
+  border-color: color-mix(in srgb, var(--nav-color) 12%, transparent);
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .nav-item--active .nav-item__icon {
+  color: var(--studio-panel);
+  background: var(--nav-color);
+  box-shadow: 0 3px 7px color-mix(in srgb, var(--nav-color) 20%, transparent);
+}
+:root[data-theme="dark"] .app-shell.app-shell--yiyuan .nav-item--active .nav-item__icon { color: #171c2d; }
+.studio-tool {
+  background: linear-gradient(145deg, var(--studio-panel) 35%, color-mix(in srgb, var(--tool-color) 7%, var(--studio-panel)));
+  border-color: color-mix(in srgb, var(--tool-color) 17%, var(--studio-line));
+  box-shadow: var(--depth-shadow);
+}
+.studio-tool__icon {
+  color: var(--tool-color);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--tool-color) 12%, var(--studio-panel)), color-mix(in srgb, var(--tool-color) 27%, var(--studio-panel)));
+  border-color: color-mix(in srgb, var(--tool-color) 24%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--studio-panel) 80%, transparent), 0 4px 9px color-mix(in srgb, var(--tool-color) 14%, transparent);
+}
+.studio-tool:hover {
+  border-color: color-mix(in srgb, var(--tool-color) 45%, var(--studio-line));
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--tool-color) 12%, transparent);
+}
+.studio-overview { box-shadow: var(--depth-shadow); }
+.studio-metric { --metric-color: var(--feature-violet); }
+.studio-metric:nth-child(2) { --metric-color: var(--feature-teal); }
+.studio-metric:nth-child(3) { --metric-color: var(--feature-blue); }
+.studio-metric__icon {
+  color: var(--metric-color);
+  background: color-mix(in srgb, var(--metric-color) 11%, var(--studio-panel));
+  border-color: color-mix(in srgb, var(--metric-color) 16%, transparent);
+}
+:root .app-shell--yiyuan :is(.workspace__form, .workspace__results, .creation-tool-page__form, .creation-tool-page__results) {
+  box-shadow: var(--depth-shadow);
+}
+:root .app-shell--yiyuan .tool-title {
+  background: linear-gradient(120deg, color-mix(in srgb, var(--feature-blue) 8%, var(--studio-panel)), var(--studio-panel));
+}
+:root .app-shell--yiyuan .tool-title > span {
+  color: var(--feature-blue);
+  background: color-mix(in srgb, var(--feature-blue) 14%, var(--studio-panel));
+  border-color: color-mix(in srgb, var(--feature-blue) 22%, transparent);
+}
+:root .app-shell--yiyuan .button--primary {
+  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+:root .app-shell--yiyuan .button--primary:disabled { box-shadow: none; }
+.mobile-navigation > [aria-current="page"] > svg {
+  background: linear-gradient(145deg, var(--primary-soft), color-mix(in srgb, var(--primary) 21%, var(--studio-panel)));
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .nav-item:hover .nav-item__icon { color: var(--nav-color); }
+:root[data-theme] .app-shell.app-shell--yiyuan .nav-item--active:hover .nav-item__icon { color: var(--studio-panel); }
+:root[data-theme="dark"] .app-shell.app-shell--yiyuan .nav-item--active:hover .nav-item__icon { color: #171c2d; }

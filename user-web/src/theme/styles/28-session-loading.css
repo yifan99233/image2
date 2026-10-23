@@ -1,0 +1,28 @@
+.session-loading {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background: radial-gradient(ellipse at 50% 42%, color-mix(in srgb, var(--primary) 7%, var(--bg)), var(--bg) 65%);
+  color: var(--text);
+}
+.session-loading__content { display: flex; flex-direction: column; align-items: center; text-align: center; transform: translateY(-24px); }
+.session-loading__mark { position: relative; width: 76px; height: 76px; display: grid; place-items: center; margin-bottom: 23px; }
+.session-loading__mark img { width: 38px; height: 38px; object-fit: contain; }
+.session-loading__orbit { position: absolute; inset: 0; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--primary) 12%, transparent); border-top: 2px solid var(--primary); border-right-color: color-mix(in srgb, var(--primary) 45%, transparent); animation: session-orbit 1.8s linear infinite; }
+.session-loading__content h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: .08em; }
+.session-loading__content p { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; color: var(--text-muted); font-size: 13px; font-weight: 400; }
+.session-loading__dots { display: inline-flex; gap: 3px; }
+.session-loading__dots i { width: 3px; height: 3px; background: currentColor; border-radius: 50%; animation: session-dot 1.5s ease-in-out infinite; }
+.session-loading__dots i:nth-child(2) { animation-delay: .15s; }
+.session-loading__dots i:nth-child(3) { animation-delay: .3s; }
+.session-loading__track { display: block; position: relative; overflow: hidden; width: 112px; height: 3px; border-radius: 3px; margin-top: 25px; background: color-mix(in srgb, var(--primary) 10%, transparent); }
+.session-loading__track i { position: absolute; inset: 0; background: linear-gradient(90deg, transparent, var(--primary), transparent); animation: session-track 1.8s ease-in-out infinite; }
+@keyframes session-orbit { to { transform: rotate(360deg); } }
+@keyframes session-dot { 0%, 80%, 100% { opacity: .3; } 40% { opacity: 1; } }
+@keyframes session-track { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .session-loading__orbit, .session-loading__dots i, .session-loading__track i { animation: none; }
+}
+.session-loading__mark img { border-radius: 10px; }

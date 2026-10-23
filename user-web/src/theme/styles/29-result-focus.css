@@ -1,0 +1,24 @@
+:root[data-theme] .app-shell.app-shell--yiyuan .tool-result-card--focused {
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border));
+  border-radius: 14px;
+  padding: 16px;
+  background: var(--surface);
+  box-shadow: 0 4px 14px rgb(30 40 70 / 4%);
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .tool-result-card--focused .tool-result-card__top strong { font-size: 16px; font-weight: 650; }
+:root[data-theme] .app-shell.app-shell--yiyuan .tool-result-card--focused .tool-result-card__top > div > span { font-size: 11px; font-weight: 400; color: var(--text-muted); overflow-wrap: anywhere; }
+:root[data-theme] .app-shell.app-shell--yiyuan .tool-result-card--focused[data-result-state="failed"] { border-color: color-mix(in srgb, var(--danger) 28%, var(--border)); }
+:root[data-theme] .app-shell.app-shell--yiyuan .tool-result-card--focused[data-result-state="failed"] .tool-result-card__preview {
+  background: color-mix(in srgb, var(--danger) 5%, var(--surface));
+  border-color: color-mix(in srgb, var(--danger) 18%, var(--border));
+  min-height: 0;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .tool-result-card--focused .tool-result-card__state { padding: 24px 18px; min-height: 150px; }
+:root[data-theme] .app-shell.app-shell--yiyuan .tool-result-card--focused[data-result-state="failed"] .tool-result-card__state > :is(svg, strong) { color: var(--danger); }
+:root[data-theme] .app-shell.app-shell--yiyuan .tool-result-card--focused .tool-result-card__state > span { font-size: 13px; font-weight: 400; line-height: 1.7; color: var(--text); }
+:root[data-theme] .app-shell.app-shell--yiyuan .tool-result-card--focused .tool-result-card__prompt p { font-size: 12px; font-weight: 400; line-height: 1.6; color: var(--text-muted); -webkit-line-clamp: 2; }
+:root[data-theme] .app-shell.app-shell--yiyuan .tool-result-card--focused .tool-result-card__prompt p.is-expanded { -webkit-line-clamp: unset; }
+:root[data-theme] .app-shell.app-shell--yiyuan .tool-result-card--focused .tool-result-card__specs span { font-size: 10px; font-weight: 500; color: var(--text-muted); background: var(--surface-muted); border-color: transparent; }
+:root[data-theme] .app-shell.app-shell--yiyuan .tool-result-card--focused .status-badge { font-size: 12px; font-weight: 600; padding: 6px 10px; }
+:root[data-theme] .app-shell.app-shell--yiyuan .tool-result-card--focused .task-button { font-size: 12px; font-weight: 500; border-radius: 9px; }
+:root[data-theme] .app-shell.app-shell--yiyuan .tool-result-card--focused .task-button--cyan:not(:disabled) { color: var(--primary); background: var(--primary-soft); border-color: color-mix(in srgb, var(--primary) 25%, var(--border)); }

@@ -1,3 +1,4 @@
+import { SessionLoading } from "@/components/ui/SessionLoading";
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/stores/authStore";
@@ -17,14 +18,7 @@ export const ProtectedRoute = () => {
   }, []);
 
   if (status === "idle" || status === "checking") {
-    return (
-      <main className="screen-center">
-        <div className="loading-panel">
-          <span className="loading-dot" />
-          <p>正在恢复会话</p>
-        </div>
-      </main>
-    );
+    return <SessionLoading />;
   }
 
   if (status !== "authenticated") {

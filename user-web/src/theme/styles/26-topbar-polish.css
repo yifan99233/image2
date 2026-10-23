@@ -1,0 +1,63 @@
+/* Quiet navigation hierarchy with a distinct current location. */
+:root[data-theme] .app-shell.app-shell--yiyuan .topbar {
+  background: linear-gradient(110deg, var(--surface), color-mix(in srgb, var(--primary) 2%, var(--surface)));
+  border-bottom-color: color-mix(in srgb, var(--primary) 10%, var(--border));
+  box-shadow: 0 2px 10px rgb(30 40 70 / 2%);
+}
+.topbar__breadcrumb { gap: 9px; min-width: 0; }
+.topbar__breadcrumb > svg:first-child { color: var(--primary); opacity: .65; }
+.topbar__breadcrumb > svg:nth-of-type(2) { opacity: .4; }
+.topbar__breadcrumb strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+  font-weight: 600;
+  min-width: 0;
+}
+.topbar__breadcrumb strong span { overflow: hidden; text-overflow: ellipsis; }
+:root[data-theme] .app-shell.app-shell--yiyuan .top-action {
+  border-radius: 10px;
+  gap: 7px;
+  font-weight: 500;
+  transition: background 160ms ease, color 160ms ease;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .top-action > svg { color: var(--primary); opacity: .7; }
+:root[data-theme] .app-shell.app-shell--yiyuan .top-action:hover {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .top-action--pink {
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+  color: var(--primary);
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .credit-pill {
+  border-radius: 11px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 12%, var(--surface)), color-mix(in srgb, var(--primary) 5%, var(--surface)));
+  border: 1px solid color-mix(in srgb, var(--primary) 10%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .account-menu__trigger {
+  border-radius: 11px;
+  padding: 3px 8px 3px 4px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .account-menu__trigger:hover,
+:root[data-theme] .app-shell.app-shell--yiyuan .account-menu__trigger[aria-expanded="true"] { background: var(--surface-muted); }
+:root[data-theme] .app-shell.app-shell--yiyuan .account-menu__trigger .avatar {
+  background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 16%, var(--surface)), color-mix(in srgb, var(--feature-teal) 12%, var(--surface)));
+  border-radius: 9px;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .topbar-moon { border-radius: 10px; }
+@media (max-width: 767px), (hover: none) and (pointer: coarse) and (max-width: 1023px) {
+  .topbar__breadcrumb strong { padding: 5px 7px; gap: 5px; font-size: 12px; }
+  .topbar__breadcrumb strong > svg { display: none; }
+  :root[data-theme] .app-shell.app-shell--yiyuan .account-menu__trigger { padding: 3px; border-color: transparent; background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme] .app-shell.app-shell--yiyuan .top-action { transition: none; }
+}

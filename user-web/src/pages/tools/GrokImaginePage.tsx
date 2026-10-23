@@ -1,3 +1,4 @@
+import { LoadingIndicator } from "@/components/ui/LoadingIndicator";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -15,7 +16,6 @@ import {
   FolderPlus,
   History,
   Image as ImageIcon,
-  Loader2,
   Mic,
   MessageSquare,
   MicOff,
@@ -42,7 +42,7 @@ import { uploadService } from "@/services/uploads";
 import type { ImageAsset, ImageModel, ImageTask } from "@/types/api";
 import { resolveAssetUrl } from "@/utils/assets";
 import { notifyCreditBalanceChanged } from "@/utils/creditEvents";
-import { downloadBlob, downloadMedia, startBrowserDownload } from "@/utils/download";
+import { downloadMedia, startBrowserDownload } from "@/utils/download";
 import { mergeImageEditAssets } from "@/utils/imageEditNavigation";
 import { getImageTaskStatusLabel } from "@/utils/imageTaskStatus";
 import { formatElapsedTime, getTaskElapsedMs } from "@/utils/time";
@@ -415,6 +415,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
 
   const [media, setMedia] = useState<ImagineMediaKind>(() => mediaFromQuery);
   const [models, setModels] = useState<ImageModel[]>([]);
+  const [isPlanningAgent, setIsPlanningAgent] = useState(false);
   const [textModels, setTextModels] = useState<ImageModel[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
   const [selectedTextModelId, setSelectedTextModelId] = useState<number | null>(null);
@@ -433,9 +434,6 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
   const [isLoadingModels, setIsLoadingModels] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
-  const [optimizationStatus, setOptimizationStatus] = useState<string | null>(null);
-  const [optimizationPreview, setOptimizationPreview] = useState("");
   const [isMaterialPickerOpen, setIsMaterialPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -663,6 +661,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
   }, [media, preferImageInput, hasImagesOrPending ? "with-image" : "no-image", createMode]);
 
   useEffect(() => {
+    if (!isAgentMode) return;
     let ignore = false;
     modelService
       .getModels("prompt_optimize")
@@ -675,7 +674,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [isAgentMode]);
 
   useEffect(() => {
     if (!selectedModelId || !resolution || !aspectRatio) return;
@@ -1059,39 +1058,6 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
     }
   };
 
-  const optimizeCurrentPrompt = async () => {
-    if (!selectedTextModelId || !prompt.trim()) return;
-    setIsOptimizingPrompt(true);
-    setError(null);
-    setOptimizationStatus("正在连接优化模型…");
-    setOptimizationPreview("");
-    try {
-      const result = await promptService.optimizeStream(
-        selectedTextModelId,
-        prompt,
-        { media, has_images: uploadedAssets.length > 0 },
-        {
-          onStatus: setOptimizationStatus,
-          onDelta: (text) => {
-            setOptimizationStatus("正在优化提示词…");
-            setOptimizationPreview((current) => current + text);
-          },
-        },
-      );
-      setPrompt(result.prompt);
-      setAgentPlanPrompt(result.prompt);
-      setNotice(isAgentMode ? "Agent 已完成提示词构思" : "提示词已优化");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "提示词优化失败");
-    } finally {
-      setIsOptimizingPrompt(false);
-      setOptimizationStatus(null);
-      setOptimizationPreview("");
-    }
-  };
-
-
-
   const stopVoiceInput = (opts?: { abort?: boolean }) => {
     const recognition = speechRecognitionRef.current;
     if (!recognition) {
@@ -1114,7 +1080,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
       setError("当前浏览器不支持语音输入，请使用 Chrome / Edge，或直接打字");
       return;
     }
-    if (isSubmitting || isOptimizingPrompt || isParsingDocument) return;
+    if (isSubmitting || isPlanningAgent || isParsingDocument) return;
 
     stopVoiceInput({ abort: true });
     const recognition = new Ctor();
@@ -2106,7 +2072,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
         const planningMessage = followUpApplied ? "正在按多轮上下文整理续改要求…" : "正在识别意图、文档与参考图，规划任务…";
         setNotice(`Agent ${planningMessage}`);
         setAgentPlanningStatus(planningMessage);
-        setIsOptimizingPrompt(true);
+        setIsPlanningAgent(true);
         try {
           plan = await promptService.agentPlanStream({
 
@@ -2261,7 +2227,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
           }
           generationModel = activeModel || generationModel;
         } finally {
-          setIsOptimizingPrompt(false);
+          setIsPlanningAgent(false);
         }
       } else {
         setAgentPlan(null);
@@ -2325,7 +2291,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
       setError(err instanceof Error ? err.message : "任务提交失败");
     } finally {
       setIsSubmitting(false);
-      setIsOptimizingPrompt(false);
+      setIsPlanningAgent(false);
       setAgentPlanningStatus(null);
     }
   };
@@ -2357,7 +2323,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
     isFollowUpIntent(prompt);
   const canSubmit =
     Boolean(
-      selectedModel && resolution && aspectRatio && !isSubmitting && !isOptimizingPrompt && !isParsingDocument && !isLoadingModels && !pendingQuoteLoading && !isUploading,
+      selectedModel && resolution && aspectRatio && !isSubmitting && !isPlanningAgent && !isParsingDocument && !isLoadingModels && !pendingQuoteLoading && !isUploading,
     ) &&
     Boolean(
         prompt.trim() ||
@@ -2733,7 +2699,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
                 onClick={() => void exportSucceededPack()}
                 title={feedFilter === "succeeded" ? "导出当前筛选的成功结果" : "导出成功结果素材包"}
               >
-                {isExporting ? <Loader2 size={13} className="spin-icon" /> : <Package size={13} />}
+                {isExporting ? <LoadingIndicator size={13} className="spin-icon" /> : <Package size={13} />}
                 导出({exportableTaskIds.length})
               </button>
               {batchStats.failed > 0 ? (
@@ -2954,7 +2920,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
                       )
                     ) : (
                       <div className="gi-card__placeholder">
-                        {busy ? <Loader2 className="spin-icon" size={22} /> : <ImageIcon size={22} />}
+                        {busy ? <LoadingIndicator className="spin-icon" size={22} /> : <ImageIcon size={22} />}
                         <span>{getImageTaskStatusLabel(task, taskStatusCopy)}</span>
                         {busy ? <strong className="gi-card__placeholder-pct">{progressLabel}</strong> : null}
                       </div>
@@ -3042,7 +3008,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
         {tasks.length && hasMoreTasks ? (
           <div className="gi-load-more" ref={loadMoreSentinelRef}>
             <button type="button" onClick={() => void loadMoreTasks()} disabled={isLoadingMoreTasks}>
-              {isLoadingMoreTasks ? <Loader2 size={15} className="spin-icon" /> : <History size={15} />}
+              {isLoadingMoreTasks ? <LoadingIndicator size={15} className="spin-icon" /> : <History size={15} />}
               {isLoadingMoreTasks ? "正在加载…" : "继续加载"}
             </button>
             <span>{isLoadingMoreTasks ? "正在读取更早的任务" : `下滑自动加载 · 已加载 ${tasks.length} 条`}</span>
@@ -3102,7 +3068,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
                   <img src={previewUrl} alt={`上传中 ${index + 1}`} />
                   <span className="gi-thumb__badge gi-thumb__badge--pending">上传中</span>
                   <div className="gi-thumb__pending-mask" aria-hidden>
-                    <Loader2 className="spin-icon" size={16} />
+                    <LoadingIndicator className="spin-icon" size={16} />
                   </div>
                 </div>
               ))}
@@ -3115,7 +3081,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
                     disabled={isUploading}
                     title="点击选择，或直接拖拽图片到此处"
                   >
-                    {isUploading ? <Loader2 className="spin-icon" size={16} /> : <UploadCloud size={16} />}
+                    {isUploading ? <LoadingIndicator className="spin-icon" size={16} /> : <UploadCloud size={16} />}
                     <span>{isUploading ? "上传中" : "拖拽/上传"}</span>
                   </button>
                   <button type="button" className="gi-thumb gi-thumb--add" onClick={() => setIsMaterialPickerOpen(true)}>
@@ -3132,7 +3098,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
                   disabled={isParsingDocument || agentDocuments.length >= 5}
                   title="上传剧本/提示词文档：TXT MD PDF DOCX CSV JSON HTML RTF"
                 >
-                  {isParsingDocument ? <Loader2 className="spin-icon" size={16} /> : <FileText size={16} />}
+                  {isParsingDocument ? <LoadingIndicator className="spin-icon" size={16} /> : <FileText size={16} />}
                   <span>文档</span>
                 </button>
               ) : null}
@@ -3388,7 +3354,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
                 type="button"
                 className={`gi-voice-btn ${isVoiceListening ? "is-listening" : ""} ${isAgentMode ? "is-agent" : ""}`}
                 onClick={toggleVoiceInput}
-                disabled={isSubmitting || isOptimizingPrompt || isParsingDocument}
+                disabled={isSubmitting || isPlanningAgent || isParsingDocument}
                 aria-pressed={isVoiceListening}
                 title={
                   isVoiceListening
@@ -3408,16 +3374,6 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
             ) : null}
             {isVoiceListening ? <p className="gi-voice-hint">正在聆听… 说完点「结束」</p> : null}
           </div>
-
-          {isOptimizingPrompt ? (
-            <div className="gi-optimization-progress" role="status" aria-live="polite">
-              <Loader2 className="spin-icon" size={15} />
-              <div>
-                <strong>{optimizationStatus || "正在优化提示词…"}</strong>
-                {optimizationPreview ? <span>{optimizationPreview}</span> : <span>优化结果将实时显示在这里</span>}
-              </div>
-            </div>
-          ) : null}
 
           <div className="gi-toolbar">
             <div className="gi-toolbar__left">
@@ -3525,18 +3481,18 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
               </button>
 
               {isComposerSettingsOpen ? <div className="gi-toolbar__advanced">
-              {/* Text model for Agent / optimize */}
-              {textModels.length ? (
+              {/* Text model is only needed for Agent planning. */}
+              {isAgentMode && textModels.length ? (
                 <div className="gi-menu-wrap">
                   <button
                     type="button"
                     className={`gi-pill-btn ${openMenu === "textModel" ? "is-open" : ""} ${isAgentMode ? "is-required" : ""}`}
                     onClick={() => setOpenMenu((v) => (v === "textModel" ? null : "textModel"))}
-                    title={isAgentMode ? "Agent 文本模型（必选）" : "提示词优化文本模型"}
+                    title="Agent 文本模型（必选）"
                   >
                     <Bot size={14} />
                     <span className="gi-pill-btn__label">
-                      {selectedTextModel?.name ?? (isAgentMode ? "文本模型" : "优化模型")}
+                      {selectedTextModel?.name ?? "文本模型"}
                     </span>
                     <ChevronDown size={14} />
                   </button>
@@ -3555,7 +3511,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
                           }}
                         >
                           <strong>{model.name}</strong>
-                          <span>{isAgentMode ? "Agent 推理模型" : "提示词优化"}</span>
+                          <span>Agent 推理模型</span>
                         </button>
                       ))}
                       {!textModels.length ? <p className="gi-menu__empty">暂无文本模型</p> : null}
@@ -3669,18 +3625,6 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
             </div>
 
             <div className="gi-toolbar__right">
-              {textModels.length && !isAgentMode ? (
-                <button
-                  type="button"
-                  className="gi-pill-btn"
-                  disabled={!selectedTextModelId || !prompt.trim() || isOptimizingPrompt || isSubmitting}
-                  onClick={() => void optimizeCurrentPrompt()}
-                  title="优化提示词"
-                >
-                  {isOptimizingPrompt ? <Loader2 className="spin-icon" size={14} /> : <Sparkles size={14} />}
-                  优化
-                </button>
-              ) : null}
               <Button
                 type="submit"
                 className="gi-make"
@@ -3692,9 +3636,9 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
                 }
               >
                 {isUploading || pendingUploadPreviews.length ? (
-                  <Loader2 className="spin-icon" size={16} />
-                ) : isSubmitting || isOptimizingPrompt || isBusy || pendingQuoteLoading ? (
-                  <Loader2 className="spin-icon" size={16} />
+                  <LoadingIndicator className="spin-icon" size={16} />
+                ) : isSubmitting || isPlanningAgent || isBusy || pendingQuoteLoading ? (
+                  <LoadingIndicator className="spin-icon" size={16} />
                 ) : isAgentMode ? (
                   <Bot size={16} />
                 ) : isVideoMode ? (
@@ -3734,7 +3678,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
 
           {isAgentMode && isSubmitting && !pendingExecution && agentPlanningStatus ? (
             <div className="gi-agent-planning" role="status" aria-live="polite">
-              <Loader2 className="spin-icon" size={18} />
+              <LoadingIndicator className="spin-icon" size={18} />
               <div>
                 <strong>Agent 正在规划</strong>
                 <span>{agentPlanningStatus}</span>
@@ -3775,7 +3719,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
                 <Button type="button" onClick={() => void confirmPendingExecution()} disabled={isSubmitting || pendingQuoteLoading}>
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="spin-icon" size={14} /> 提交中…
+                      <LoadingIndicator className="spin-icon" size={14} /> 提交中…
                     </>
                   ) : (
                     <>
@@ -4106,7 +4050,7 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
                     disabled={isDownloadingPreview}
                   >
                     {isDownloadingPreview ? (
-                      <Loader2 size={17} className="spin" />
+                      <LoadingIndicator size={17} className="spin" />
                     ) : (
                       <Download size={17} />
                     )}

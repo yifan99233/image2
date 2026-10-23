@@ -221,6 +221,7 @@ export default {
         imported: "已导入 {{count}} 个画布",
         importFailed: "导入失败，请选择有效的画布压缩包",
         opening: "正在打开画布...",
+        loadingHint: "让灵感，慢慢铺展开",
         loading: "正在加载画布...",
         exportSelected: "导出选中",
         deleteSelected: "删除选中",

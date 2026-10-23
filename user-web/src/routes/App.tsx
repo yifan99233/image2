@@ -1,3 +1,4 @@
+import { LoadingState } from "@/components/ui/LoadingState";
 import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -11,7 +12,6 @@ import { WorksPage } from "@/pages/WorksPage";
 import { AccountProfilePage, AccountSettingsPage } from "@/pages/AccountPages";
 import { CreditsLedgerPage } from "@/pages/CreditsLedgerPage";
 import { TeamSettingsPage } from "@/pages/TeamPage";
-import { RechargePage } from "@/pages/RechargePage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
 import {
   CreativeToolPage,
@@ -65,7 +65,7 @@ export const App = () => {
           <Route
             path="/create/imagine"
             element={
-              <Suspense fallback={<div className="list-state">正在加载创作工作台…</div>}>
+              <Suspense fallback={<LoadingState label="正在加载创作工作台…" variant="cards" />}>
                 <GrokImaginePage />
               </Suspense>
             }
@@ -83,7 +83,7 @@ export const App = () => {
           <Route path="/account/profile" element={<AccountProfilePage />} />
           <Route path="/account/settings" element={<AccountSettingsPage />} />
           <Route path="/credits/ledger" element={<CreditsLedgerPage />} />
-          <Route path="/billing/recharge" element={<RechargePage />} />
+          <Route path="/billing/recharge" element={<Navigate to="/support" replace />} />
           <Route path="/team" element={<TeamSettingsPage />} />
           <Route path="/product/try-on" element={<ProductToolPage mode="try-on" />} />
           <Route path="/product/multi-view" element={<ProductToolPage mode="multi-view" />} />

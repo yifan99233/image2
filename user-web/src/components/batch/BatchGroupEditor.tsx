@@ -1,3 +1,4 @@
+import { LoadingIndicator } from "@/components/ui/LoadingIndicator";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Download, FolderPlus, UploadCloud, X } from "lucide-react";
 import { Button } from "../ui/Button";
@@ -243,7 +244,7 @@ export const BatchGroupEditor = ({
       </small>
       {busy || message ? (
         <p className="batch-groups__message" role="status">
-          {busy ? "正在读取文件，请稍候…" : message}
+          {busy && <LoadingIndicator size={15} />} {busy ? "正在读取文件，请稍候…" : message}
         </p>
       ) : null}
       {groups.length ? (

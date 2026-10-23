@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { CanvasLoading } from "@/components/ui/CanvasLoading";
 import { useThemeStore } from "@/stores/themeStore";
 import { createCanvasHost } from "./host";
 import { CANVAS_CHANNEL, type CanvasMethod } from "../../../../canvas-web/src/integration/protocol";
@@ -37,8 +38,8 @@ export function CanvasWorkspace({ visible }: { visible: boolean }) {
 
   return (
     <section className="canvas-workspace" hidden={!visible} aria-label="画布工作台">
-      {!ready && <div className="canvas-workspace__loading" role="status">
-        <p>{error || "正在加载画布…"}</p>
+      {!ready && <div className="canvas-workspace__loading">
+        {error ? <p role="status">{error}</p> : <CanvasLoading /> }
         {error && <button className="button button--secondary" type="button" onClick={() => { setError(""); if (frame.current) frame.current.src = "/canvas-app/"; }}>重新加载</button>}
       </div>}
       <iframe ref={frame} src="/canvas-app/" title="画布" className="canvas-workspace__frame" allow="clipboard-read; clipboard-write" />

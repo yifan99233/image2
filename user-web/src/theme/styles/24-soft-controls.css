@@ -1,0 +1,92 @@
+/* Quiet secondary actions, clear primary actions, and grouped mode choices. */
+:root[data-theme] .app-shell.app-shell--yiyuan .button {
+  border-radius: 11px;
+  font-weight: 550;
+  letter-spacing: 0;
+  gap: 7px;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .button--secondary {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 10%, transparent);
+  box-shadow: none;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .button--secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 20%, transparent);
+  transform: none;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .button--ghost {
+  color: var(--text-muted);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .button--ghost:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface-muted);
+  transform: none;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .button:disabled { box-shadow: none; cursor: not-allowed; }
+:root[data-theme] .app-shell.app-shell--yiyuan .button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .tool-cost {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 4px 0;
+  border-radius: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  gap: 7px;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .tool-cost > svg { width: 16px; height: 16px; opacity: .7; }
+:root[data-theme] .app-shell.app-shell--yiyuan .batch-import-row {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--primary) 3%, var(--surface));
+  border-radius: 14px;
+  padding: 14px;
+  gap: 14px;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .batch-import-row strong { font-weight: 600; }
+:root[data-theme] .app-shell.app-shell--yiyuan .batch-template-trigger { font-size: 13px; }
+:root[data-theme] .app-shell.app-shell--yiyuan .prompt-mode-toggle {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px;
+  gap: 3px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .prompt-mode-toggle > button {
+  min-height: 34px;
+  padding: 6px 16px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--text-muted);
+  background: transparent;
+  font-weight: 500;
+  font-size: 13px;
+  box-shadow: none;
+  transition: background 160ms ease, color 160ms ease;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .prompt-mode-toggle > button.is-active {
+  background: var(--surface);
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 8%, transparent);
+  box-shadow: 0 2px 5px rgb(30 40 70 / 7%);
+  font-weight: 600;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .prompt-mode-toggle > button:hover:not(:disabled):not(.is-active) { color: var(--text); background: color-mix(in srgb, var(--surface) 65%, transparent); }
+@media (hover: none) and (pointer: coarse) {
+  :root[data-theme] .app-shell.app-shell--yiyuan .prompt-mode-toggle > button { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme] .app-shell.app-shell--yiyuan :is(.button, .prompt-mode-toggle > button) { transition: none; }
+}

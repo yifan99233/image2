@@ -1,0 +1,769 @@
+.creation-submit-bar {
+  display: contents;
+}
+
+/* Phone layouts follow the available viewport; touch sizing also applies to tablets. */
+.mobile-navigation,
+.mobile-creation-tabs,
+.sidebar__mobile-tools,
+.account-menu__mobile-links {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .app-shell--yiyuan :is(.button, .model-select__trigger, .task-button, .segmented-row button),
+  .model-picker__filters button,
+  .model-picker__close {
+    min-height: 44px;
+  }
+  .app-shell--yiyuan :is(a, button, label) {
+    touch-action: manipulation;
+  }
+  .studio-tool:hover {
+    transform: none;
+  }
+}
+
+/* A narrow tablet still needs a single column for creation controls. */
+@media (min-width: 768px) and (max-width: 1180px) {
+  :root[data-theme] .app-shell.app-shell--yiyuan :is(.workspace, .creation-tool-page__layout) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  :root[data-theme]
+    .app-shell.app-shell--yiyuan
+    :is(.workspace__form, .workspace__results, .compose-panel, .result-preview-panel) {
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+  }
+  .creation-tool-page .tool-scroll {
+    overflow: visible;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .config-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan :is(.config-field--model, .config-field--aspect) {
+    grid-column: 1 / -1;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .aspect-choice-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan :is(.compose-panel, .workspace__form) {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+  }
+}
+
+@media (max-width: 767px), (hover: none) and (pointer: coarse) and (max-width: 1023px) {
+  :root {
+    --mobile-nav-height: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+  html {
+    scroll-padding-top: 114px;
+  }
+  body {
+    -webkit-text-size-adjust: 100%;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .app-shell__main {
+    padding-bottom: var(--mobile-nav-height);
+    min-height: 100dvh;
+    grid-template-rows: 58px minmax(0, 1fr);
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .topbar {
+    padding-left: max(12px, env(safe-area-inset-left, 0px));
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
+    z-index: 30;
+  }
+  :root[data-theme]
+    .app-shell.app-shell--yiyuan
+    :is(.topbar__mobile-menu, .topbar-moon, .account-menu__trigger) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .topbar__links {
+    gap: 2px;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .topbar__actions {
+    gap: 2px;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .credit-pill {
+    min-height: 40px;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .sidebar {
+    width: min(300px, calc(100vw - 56px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .sidebar__toggle {
+    min-width: 40px;
+    min-height: 44px;
+    margin-left: -8px;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .sidebar__nav {
+    min-height: 0;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .nav-item {
+    min-height: 46px;
+    font-size: 14px;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .nav-group__label {
+    min-height: 36px;
+    font-size: 12px;
+  }
+  .sidebar__mobile-tools {
+    display: grid;
+    gap: 4px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+  .sidebar__mobile-tools a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    min-height: 46px;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+  .account-menu__mobile-links {
+    display: grid;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .account-menu__panel {
+    max-width: calc(100vw - 28px);
+    max-height: calc(100dvh - 144px);
+    overflow-y: auto;
+  }
+  .account-menu__panel :is(a, button) {
+    min-height: 44px;
+  }
+  .mobile-navigation {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 30;
+    display: flex;
+    align-items: stretch;
+    height: var(--mobile-nav-height);
+    padding: 4px max(10px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px)
+      max(10px, env(safe-area-inset-left, 0px));
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: 0 -4px 24px rgb(20 30 50 / 4%);
+  }
+  .mobile-navigation > :is(a, button) {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .mobile-navigation > [aria-current="page"] {
+    color: var(--primary);
+    background: var(--primary-soft);
+    font-weight: 650;
+  }
+  .mobile-navigation > :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -3px;
+  }
+
+  :root[data-theme] .app-shell.app-shell--yiyuan :is(.page-surface, .workspace) {
+    margin: 0;
+    padding: 18px 14px 24px;
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    max-width: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: var(--bg);
+    align-content: start;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan :is(.page-header, .creation-tool-page__header) {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan :is(.page-header h1, .tool-title h1) {
+    font-size: 22px;
+    line-height: 1.4;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan :is(.page-header p, .tool-title p) {
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .page-actions {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+  .page-actions > .button {
+    flex: 1;
+  }
+  .mobile-creation-tabs {
+    display: flex;
+    gap: 6px;
+    padding: 5px;
+    margin: 0 0 14px;
+    background: var(--surface-muted);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    position: sticky;
+    top: 66px;
+    z-index: 12;
+    grid-column: 1 / -1;
+  }
+  .mobile-creation-tabs button {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 7px;
+    flex: 1;
+    min-height: 44px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .mobile-creation-tabs button[aria-pressed="true"] {
+    color: var(--primary);
+    background: var(--surface);
+    box-shadow: 0 2px 6px rgb(20 30 50 / 5%);
+    font-weight: 650;
+  }
+  .mobile-creation-tabs button > span {
+    font-size: 10px;
+    background: var(--primary-soft);
+    border-radius: 5px;
+    padding: 2px 5px;
+  }
+  .mobile-creation-tabs button:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan :is(.workspace, .creation-tool-page__layout) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .creation-tool-page[data-mobile-panel="form"] :is(.workspace__results, .result-preview-panel),
+  .creation-tool-page[data-mobile-panel="results"]
+    :is(.workspace__form, .creation-tool-page__form) {
+    display: none !important;
+  }
+  :root[data-theme]
+    .app-shell.app-shell--yiyuan
+    :is(.workspace__form, .workspace__results, .compose-panel, .result-preview-panel) {
+    min-width: 0;
+    width: 100%;
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
+    padding: 16px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: none;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .workspace__form {
+    padding: 0;
+    display: block;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .tool-title {
+    display: grid;
+    align-items: start;
+    margin: 0;
+    padding: 18px 16px;
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 12px;
+    background: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .creation-tool-page .tool-title > span {
+    width: 36px;
+    height: 36px;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .tool-scroll {
+    padding: 14px;
+    overflow: visible;
+    gap: 20px;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .tool-step {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    gap: 14px;
+    box-shadow: none;
+  }
+  .tool-step + .tool-step {
+    padding-top: 18px !important;
+    border-top: 1px solid var(--border) !important;
+  }
+  .tool-step__head {
+    flex-wrap: wrap;
+  }
+  .tool-step__head small {
+    width: 100%;
+    margin: 0;
+    font-size: 12px;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .config-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 10px;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan :is(.config-field--model, .config-field--aspect) {
+    grid-column: 1 / -1;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .aspect-choice-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .aspect-choice {
+    min-width: 0;
+    min-height: 68px;
+    padding: 9px 6px;
+    font-size: 13px;
+    gap: 6px;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .aspect-choice__preview {
+    height: 24px;
+  }
+  :root[data-theme]
+    .app-shell.app-shell--yiyuan
+    :is(.model-select__trigger, .button, .task-button, .segmented-row button) {
+    min-height: 44px;
+  }
+  .creation-tool-page .model-select__trigger {
+    width: 100%;
+    font-size: 14px;
+    min-width: 0;
+  }
+  .model-select__menu {
+    max-height: min(320px, 50dvh);
+    overflow-y: auto;
+  }
+  .model-select__option {
+    min-height: 44px;
+  }
+  :root[data-theme]
+    .app-shell.app-shell--yiyuan
+    :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select),
+  .auth-form :is(input, textarea, select),
+  .model-picker__search input,
+  .material-picker :is(input, select) {
+    font-size: 16px;
+  }
+  .creation-tool-page textarea {
+    min-height: 150px;
+    max-width: 100%;
+    scroll-margin-block: 120px;
+  }
+  .prompt-tools-row {
+    flex-wrap: wrap;
+  }
+  .prompt-tools-row > select {
+    min-width: 0;
+    flex: 1 1 150px;
+    min-height: 44px;
+  }
+  .prompt-tools-row > button {
+    flex: 1 1 120px;
+  }
+  .upload-dropzone,
+  .file-drop {
+    min-height: 144px;
+    padding: 20px 14px;
+  }
+  .upload-dropzone small {
+    line-height: 1.7;
+  }
+  .upload-chip button,
+  .asset-preview-card__remove {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .upload-list,
+  .asset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .creation-tool-page .upload-chip {
+    min-width: 0;
+  }
+  .batch-import-row,
+  .batch-edit-summary,
+  .batch-generate-output-count {
+    flex-wrap: wrap;
+  }
+  .batch-import-actions {
+    flex-wrap: wrap;
+  }
+  .batch-import-actions > button {
+    min-height: 44px;
+    flex: 1;
+  }
+  .prompt-mode-toggle {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .generate-bar {
+    position: sticky;
+    bottom: var(--mobile-nav-height);
+    z-index: 14;
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+    border-radius: 0 0 14px 14px;
+    background: var(--surface);
+    box-shadow: 0 -5px 18px rgb(20 30 50 / 5%);
+  }
+  .generate-bar p {
+    font-size: 10px;
+    line-height: 1.5;
+    margin: 7px 0 0;
+  }
+  .creation-submit-bar {
+    display: block;
+    position: sticky;
+    bottom: var(--mobile-nav-height);
+    z-index: 14;
+    padding: 12px 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -10px 14px var(--surface);
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .creation-tool-page__submit {
+    min-height: 48px;
+    width: 100%;
+  }
+  .creation-tool-page__submit {
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .creation-tool-page__submit span {
+    font-size: 12px;
+  }
+  .page-surface.creation-tool-page {
+    gap: 14px;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .generate-bar .button {
+    width: 100%;
+    min-height: 48px;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .creation-tool-page .result-preview-panel > header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan :is(.result-preview-panel h2, .result-header h2) {
+    font-size: 19px;
+  }
+  :root[data-theme]
+    .app-shell.app-shell--yiyuan
+    :is(.result-preview-panel > header p, .result-header p) {
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .result-preview-panel > header .task-button {
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  :root[data-theme] .app-shell.app-shell--yiyuan .inline-notice {
+    left: 14px;
+    right: 14px;
+    top: 70px;
+    width: auto;
+    max-width: none;
+    transform: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.65;
+    box-shadow: 0 8px 28px rgb(20 30 50 / 14%);
+  }
+  .creation-tool-page :is(.task-list-compact, .result-list) {
+    overflow: visible;
+    max-height: none;
+    padding: 0;
+  }
+  .creation-tool-page :is(.result-header, .tool-result-card__top, .creation-card__top) {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .creation-tool-page .comparison {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .creation-tool-page :is(.task-meta, .task-actions) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .creation-tool-page :is(.task-meta__value, .tool-result-card__top strong) {
+    overflow-wrap: anywhere;
+  }
+  .tool-cost {
+    width: 100%;
+    flex-wrap: wrap;
+    font-size: 12px;
+  }
+  .tool-cost small {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .work-content {
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .work-content > *,
+  .filter-toolbar,
+  .search-field {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .search-field {
+    grid-template-columns: 18px minmax(0, 1fr);
+  }
+  .search-field input {
+    min-width: 0;
+    width: 100%;
+  }
+  .work-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .filter-sidebar {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    max-width: 100%;
+  }
+  .filter-sidebar > button {
+    flex-shrink: 0;
+    min-height: 44px;
+    white-space: nowrap;
+  }
+  .filter-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .filter-toolbar .segmented-row {
+    overflow-x: auto;
+    max-width: 100%;
+    flex-wrap: nowrap;
+  }
+  .filter-toolbar .segmented-row button {
+    flex-shrink: 0;
+  }
+  .work-grid,
+  .gallery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .work-card__body {
+    padding: 12px;
+  }
+  .work-card__actions {
+    flex-wrap: wrap;
+  }
+  .work-card__actions button {
+    min-height: 40px;
+    min-width: 40px;
+  }
+  .work-card__meta {
+    overflow-wrap: anywhere;
+  }
+
+  /* Keep dialogs above app navigation and inside the visual viewport. */
+  .modal-backdrop {
+    z-index: 100;
+    padding: 12px;
+  }
+  .model-picker__backdrop {
+    padding: 0;
+    align-items: end;
+  }
+  .model-picker__dialog {
+    width: 100%;
+    max-height: 88dvh;
+    border-radius: 20px 20px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .model-picker__header,
+  .model-picker__controls {
+    padding: 16px;
+  }
+  .model-picker__controls {
+    gap: 12px;
+  }
+  .model-picker__close {
+    width: 44px;
+    height: 44px;
+  }
+  .model-picker__option {
+    min-width: 0;
+  }
+  .model-picker__option-head strong {
+    overflow-wrap: anywhere;
+  }
+  .image-preview-dialog {
+    max-width: 100%;
+    max-height: 90dvh;
+  }
+  .confirm-dialog {
+    width: 100%;
+    max-height: 85dvh;
+    overflow-y: auto;
+    padding: 24px 20px;
+  }
+  .dialog-actions {
+    flex-wrap: wrap;
+  }
+  .dialog-actions > .button {
+    flex: 1;
+    min-height: 44px;
+  }
+
+  .material-picker--dialog > header > button {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+  .material-picker--dialog .button {
+    min-height: 44px;
+  }
+  .material-picker.material-picker--dialog {
+    max-height: 90dvh;
+  }
+  .canvas-workspace {
+    min-height: 0;
+    height: calc(100dvh - 58px - var(--mobile-nav-height));
+  }
+
+  .auth-page.auth-page--simple {
+    min-height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .auth-page--simple .auth-landing-nav {
+    padding: 18px 20px 0;
+  }
+  .auth-page--simple .auth-home,
+  .auth-page--simple:has(#login-title) .auth-home {
+    padding: 26px 18px 28px;
+    gap: 22px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .auth-page--simple .auth-home h1 {
+    font-size: clamp(28px, 8vw, 36px);
+    line-height: 1.25;
+    letter-spacing: -0.04em;
+  }
+  .auth-page--simple .auth-hero__eyebrow {
+    font-size: 11px;
+    margin-bottom: 12px;
+  }
+  .auth-home__content {
+    gap: 14px;
+  }
+  .auth-home__summary {
+    font-size: 13px;
+    line-height: 1.7;
+    margin-top: 12px;
+  }
+  .auth-product-preview {
+    display: none;
+  }
+  .auth-capability-list span {
+    min-height: 30px;
+    font-size: 11px;
+    padding: 5px 9px;
+  }
+  .auth-page--simple .auth-workbench::before {
+    display: none;
+  }
+  .auth-page--simple .auth-card {
+    max-width: none;
+    padding: 24px 20px;
+    border-radius: 18px;
+  }
+  .auth-page--simple .auth-card__hero {
+    margin-bottom: 20px;
+  }
+  .auth-page--simple .auth-card h2 {
+    font-size: 23px;
+  }
+  .auth-page--simple .auth-card input {
+    font-size: 16px;
+    min-height: 50px;
+  }
+  .auth-page--simple .auth-card .form {
+    gap: 16px;
+  }
+  .auth-page--simple .auth-card .button {
+    min-height: 48px;
+  }
+  .auth-page--simple .password-field button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .auth-page--simple .auth-switch a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  /* The keyboard needs the bottom edge more than navigation does. */
+  body:has(
+      textarea:focus,
+      input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus
+    )
+    .mobile-navigation {
+    visibility: hidden;
+  }
+  :root[data-theme]
+    .app-shell.app-shell--yiyuan
+    .creation-tool-page:has(
+      textarea:focus,
+      input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus
+    )
+    :is(.generate-bar, .creation-submit-bar) {
+    bottom: 8px;
+  }
+}
+
+@media (max-width: 359px) {
+  :root[data-theme] .app-shell.app-shell--yiyuan .credit-pill {
+    display: none;
+  }
+  .studio-home {
+    padding-inline: 14px;
+  }
+  .studio-welcome h1 {
+    font-size: 22px;
+  }
+  .studio-metric {
+    padding-inline: 9px;
+  }
+  .studio-tool {
+    padding: 14px;
+  }
+  .studio-tool p {
+    font-size: 11px;
+  }
+}

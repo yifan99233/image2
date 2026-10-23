@@ -1,5 +1,6 @@
 import { type PropsWithChildren, useEffect, useState } from "react";
-import { ArrowUpRight, Check, Code2, ImageIcon, Sparkles, WandSparkles } from "lucide-react";
+import { ArrowUpRight, Check } from "lucide-react";
+import { Image as ImageIcon, Sparkles, Film as WandSparkles } from "@/components/ui/StudioIcons";
 import { Link } from "react-router-dom";
 import { loadSiteConfig, readCachedSiteConfig } from "@/services/siteConfigStore";
 
@@ -14,16 +15,11 @@ const capabilities = [
     title: "文生 / 图生视频",
     icon: WandSparkles,
   },
-  {
-    title: "Codex 定制版",
-    icon: Code2,
-  },
 ];
 
 const workflowItems = [
   { title: "批量生成商品套图", meta: "6 张图片已完成", state: "已完成" },
   { title: "图生视频任务", meta: "正在生成第 2 个镜头", state: "生成中" },
-  { title: "Codex API Key 用量", meta: "今日调用记录已同步", state: "已同步" },
 ];
 
 export const AuthPageLayout = ({ children }: AuthPageLayoutProps) => {
@@ -48,7 +44,7 @@ export const AuthPageLayout = ({ children }: AuthPageLayoutProps) => {
           </span>
           <span className="auth-brand__name">{siteConfig.site_name}</span>
         </Link>
-        <span className="auth-nav-note">AI 创作与开发工作台</span>
+        <span className="auth-nav-note">AI 创作工作台</span>
       </header>
 
       <section className="auth-home" aria-label="产品登录首页">
@@ -56,14 +52,14 @@ export const AuthPageLayout = ({ children }: AuthPageLayoutProps) => {
           <div className="auth-home__copy">
             <p className="auth-hero__eyebrow">
               <Sparkles size={15} />
-              AI 视觉创作与开发工作台
+              AI 视觉创作工作台
             </p>
             <h1>
-              <span>图片、视频与 Codex</span>
+              <span>图片与视频创作</span>
               <span>都在一个工作台</span>
             </h1>
             <p className="auth-home__summary">
-              从文生图、批量改图到图生视频，再到 Codex 定制版接入，把创作与开发所需的 AI 能力集中在一起。
+              从文生图、批量改图到图生视频，把视觉创作所需的 AI 能力集中在一起。
             </p>
           </div>
 

@@ -1,5 +1,8 @@
+import { LoadingIndicator } from "@/components/ui/LoadingIndicator";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { ExpandablePrompt } from "@/components/ui/ExpandablePrompt";
 import { useEffect, useMemo, useState } from "react";
-import { Download, Eye, FolderPlus, Loader2, Search, Star, Trash2, X } from "lucide-react";
+import { Download, Eye, FolderPlus, Search, Star, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { workService } from "@/services/works";
 import type { WorkItem } from "@/types/api";
@@ -118,7 +121,7 @@ export const WorksPage = () => {
   };
 
   return (
-    <main className="page-surface">
+    <main className="page-surface works-page">
       <header className="page-header">
         <div>
           <h1>我的作品</h1>
@@ -139,7 +142,7 @@ export const WorksPage = () => {
       <section className="work-layout">
         <aside className="filter-sidebar" aria-label="作品分类">
           {categories.map((item) => (
-            <button className={item === category ? "is-active" : undefined} key={item} type="button" onClick={() => setCategory(item)}>
+            <button className={item === category ? "is-active" : undefined} key={item} type="button" aria-pressed={item === category} onClick={() => setCategory(item)}>
               {item}
             </button>
           ))}
@@ -149,18 +152,18 @@ export const WorksPage = () => {
           <div className="filter-toolbar">
             <div className="search-field">
               <Search size={17} />
-              <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索提示词" />
+              <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索提示词" aria-label="搜索作品提示词" />
             </div>
             <div className="segmented-row segmented-row--compact">
               {statusFilters.map((item) => (
-                <button className={item === status ? "is-active" : undefined} key={item} type="button" onClick={() => setStatus(item)}>
+                <button className={item === status ? "is-active" : undefined} key={item} type="button" aria-pressed={item === status} onClick={() => setStatus(item)}>
                   {item}
                 </button>
               ))}
             </div>
           </div>
 
-          {isLoading ? <div className="list-state">正在加载作品...</div> : null}
+          {isLoading ? <LoadingState label="正在加载作品…" variant="cards" /> : null}
           {error ? <div className="list-state list-state--error">{error}</div> : null}
           {!isLoading && !error && filteredWorks.length === 0 ? (
             <div className="empty-state">
@@ -192,13 +195,13 @@ export const WorksPage = () => {
                       {formatWorkTime(work.created_at)}
                     </time>
                   </div>
-                  <p>{work.prompt_snapshot}</p>
+                  <ExpandablePrompt text={work.prompt_snapshot} />
                   <div className="work-card__actions">
                     <button type="button" aria-label="下载" onClick={() => void downloadWork(work)}>
                       <Download size={16} />
                     </button>
                     <button className={work.is_collected ? "is-active" : undefined} type="button" aria-label={work.is_collected ? "取消收藏" : "收藏"} aria-pressed={work.is_collected} title={work.is_collected ? "取消收藏" : "收藏到我的筛选"} disabled={updatingWorkIds.includes(work.id)} onClick={() => void updateWork(work, { is_collected: !work.is_collected })}>
-                      {updatingWorkIds.includes(work.id) ? <Loader2 className="spin-icon" size={16} /> : <FolderPlus size={16} />}
+                      {updatingWorkIds.includes(work.id) ? <LoadingIndicator className="spin-icon" size={16} /> : <FolderPlus size={16} />}
                     </button>
                     <button className={work.is_recommended || work.gallery_review_status === "pending" ? "is-active" : undefined} type="button" aria-label={work.is_recommended ? "取消公开展示" : work.gallery_review_status === "pending" ? "撤回审核" : "提交广场审核"} title={work.is_recommended ? "从公开展示移除" : work.gallery_review_status === "pending" ? "撤回审核申请" : "提交到创作广场，审核通过后公开"} disabled={updatingWorkIds.includes(work.id)} onClick={() => void updateWork(work, { is_recommended: !(work.is_recommended || work.gallery_review_status === "pending") })}>
                       <Star size={16} />

@@ -1,3 +1,4 @@
+import { LoadingState } from "@/components/ui/LoadingState";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDownCircle, ArrowUpCircle, Coins, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -124,7 +125,7 @@ export const CreditsLedgerPage = () => {
       </div>
 
       <section className="ledger-list">
-        {isLoading ? <div className="list-state">正在加载积分流水...</div> : null}
+        {isLoading ? <LoadingState label="正在加载积分流水…" /> : null}
         {!isLoading && !error && filtered.length === 0 ? (
           <div className="empty-state">
             <Coins size={34} />

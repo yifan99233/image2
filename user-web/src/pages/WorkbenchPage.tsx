@@ -1,3 +1,8 @@
+import { LoadingArt } from "@/components/ui/LoadingArt";
+import { LoadingIndicator } from "@/components/ui/LoadingIndicator";
+import { Wand2 } from "@/components/ui/StudioIcons";
+import { CreationMobileTabs } from "@/components/layout/CreationMobileTabs";
+import { useCreationPanel } from "@/hooks/useCreationPanel";
 import { useEffect, useMemo, useRef, useState, type CompositionEvent, type CSSProperties, type ChangeEvent, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -10,7 +15,6 @@ import {
   FolderPlus,
   ImageOff,
   ImagePlus,
-  Loader2,
   RotateCcw,
   Trash2,
   UploadCloud,
@@ -24,7 +28,6 @@ import { AssetPreviewImage } from "@/components/images/AssetPreviewImage";
 import { DEFAULT_IMAGE_QUALITY, IMAGE_QUALITY_OPTIONS } from "@/constants/imageGeneration";
 import { imageTaskService } from "@/services/imageTasks";
 import { modelService } from "@/services/models";
-import { promptService } from "@/services/prompt";
 import { uploadService } from "@/services/uploads";
 import { workService } from "@/services/works";
 import type { ImageAsset, ImageModel, ImageQuality, ImageTask } from "@/types/api";
@@ -127,6 +130,7 @@ const isPromptCollapsible = (prompt?: string | null) => {
 };
 
 export const WorkbenchPage = () => {
+  const [mobilePanel, setMobilePanel] = useCreationPanel();
   const location = useLocation();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -135,9 +139,7 @@ export const WorkbenchPage = () => {
   const pollingRef = useRef<ReturnType<typeof createImageTaskPoller<ImageTask>> | null>(null);
   const submitInFlightRef = useRef(false);
   const [models, setModels] = useState<ImageModel[]>([]);
-  const [textModels, setTextModels] = useState<ImageModel[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
-  const [selectedTextModelId, setSelectedTextModelId] = useState<number | null>(null);
   const [openConfigMenu, setOpenConfigMenu] = useState<"resolution" | "quality" | "aspect" | null>(null);
   const [uploadedAssets, setUploadedAssets] = useState<ImageAsset[]>([]);
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
@@ -156,7 +158,6 @@ export const WorkbenchPage = () => {
   const [tasks, setTasks] = useState<ImageTask[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
   const [isMaterialPickerOpen, setIsMaterialPickerOpen] = useState(false);
   const [confirmDeleteTaskId, setConfirmDeleteTaskId] = useState<number | null>(null);
   const [previewAsset, setPreviewAsset] = useState<ImageAsset | null>(null);
@@ -209,6 +210,7 @@ export const WorkbenchPage = () => {
     const sourceAssets = readImageEditAssets(location.state);
     if (!sourceAssets.length) return;
     const sourcePrompt = readImageEditPrompt(location.state);
+    setMobilePanel("form");
     setUploadedAssets(sourceAssets);
     setPendingUploads((current) => {
       current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
@@ -228,7 +230,7 @@ export const WorkbenchPage = () => {
       promptStepRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       promptInputRef.current?.focus();
     }, 0);
-  }, [location.pathname, location.state, navigate]);
+  }, [location.pathname, location.state, navigate, setMobilePanel]);
 
   useEffect(() => {
     if (!uploadError) return;
@@ -263,11 +265,6 @@ export const WorkbenchPage = () => {
     };
 
     void loadModels();
-    modelService.getModels("prompt_optimize").then((items) => {
-      if (ignore) return;
-      setTextModels(items);
-      setSelectedTextModelId(items[0]?.id ?? null);
-    }).catch(() => undefined);
 
     return () => {
       ignore = true;
@@ -455,21 +452,6 @@ export const WorkbenchPage = () => {
     [pendingUploads, uploadedAssets],
   );
 
-  const optimizeCurrentPrompt = async () => {
-    if (!selectedTextModelId || !prompt.trim()) return;
-    setIsOptimizingPrompt(true);
-    setSubmitError(null);
-    try {
-      const result = await promptService.optimize(selectedTextModelId, prompt);
-      setPrompt(result.prompt);
-      setNotice("提示词已优化");
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "提示词优化失败");
-    } finally {
-      setIsOptimizingPrompt(false);
-    }
-  };
-
   function pollTask(taskId: number) {
     pollTasks([taskId]);
   }
@@ -524,6 +506,7 @@ export const WorkbenchPage = () => {
         )
         : [await imageTaskService.createTask(singleOutputPayload, inputAssets)];
       setTasks((current) => [...createdTasks.reverse(), ...current]);
+      setMobilePanel("results");
       pollTasks(createdTasks.map((task) => task.id));
       clearReferenceUploads();
       notifyCreditBalanceChanged();
@@ -541,6 +524,7 @@ export const WorkbenchPage = () => {
     const output = task.output_images[0];
     if (!output) return;
     const editAssets = mergeImageEditAssets(output, task.input_images);
+    setMobilePanel("form");
     setUploadedAssets(editAssets);
     setPreviewUrls({});
     setPrompt(nextPrompt);
@@ -549,7 +533,7 @@ export const WorkbenchPage = () => {
     const sourceSummary = editAssets.length > 1
       ? `结果图和 ${editAssets.length - 1} 张原始参考图`
       : "结果图";
-    setNotice(`已把${sourceSummary}及原提示词放入左侧编辑区，可直接修改后重新生成`);
+    setNotice(`已把${sourceSummary}及原提示词放入创作设置，可直接修改后重新生成`);
     window.setTimeout(() => {
       promptStepRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       promptInputRef.current?.focus();
@@ -668,15 +652,16 @@ export const WorkbenchPage = () => {
   };
 
   return (
-    <main className="workspace creation-tool-page creation-tool-page--edit">
+    <main className="workspace creation-tool-page creation-tool-page--edit" data-mobile-panel={mobilePanel}>
+      <CreationMobileTabs panel={mobilePanel} onChange={setMobilePanel} resultCount={tasks.length} />
       <section className="workspace__form" aria-labelledby="workspace-title">
         <div className="tool-title creation-tool-page__header">
           <span>
-            <Edit3 size={22} />
+            <Wand2 size={24} />
           </span>
           <div>
             <h1 id="workspace-title">图生图</h1>
-            <p>选择模型、上传图片并输入修改指令，提交后在右侧查看进度和结果。</p>
+            <p>选择模型、上传图片并输入修改指令，提交后查看生成进度和结果。</p>
           </div>
         </div>
 
@@ -777,7 +762,7 @@ export const WorkbenchPage = () => {
               </div>
               <div className="config-field config-field--aspect">
                 <span>尺寸</span>
-                <div className="aspect-choice-grid" role="radiogroup" aria-label="选择尺寸比例">
+                <div className="aspect-choice-grid aspect-ratio-grid" role="radiogroup" aria-label="选择尺寸比例">
                   {selectedModel?.supported_aspect_ratios.map((option) => (
                     <button
                       className={option.value === aspectRatio ? "aspect-choice is-active" : "aspect-choice"}
@@ -821,9 +806,9 @@ export const WorkbenchPage = () => {
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={handleDrop}
               >
-                <span>{isUploading ? <Loader2 className="spin-icon" size={25} /> : <UploadCloud size={25} />}</span>
-                <strong>{isUploading ? "正在上传图片" : "点击或拖拽图片上传"}</strong>
-                <small>仅支持 JPG、PNG、WEBP，单张不超过 10MB，点击生成时按当前模型线路上传</small>
+                <span>{isUploading ? <LoadingIndicator className="spin-icon" size={25} /> : <UploadCloud size={25} />}</span>
+                <strong>{isUploading ? "正在上传图片" : "选择图片"}</strong>
+                <small>支持 JPG、PNG、WEBP，单张不超过 10MB</small>
               </button>
               <Button variant="secondary" type="button" onClick={() => setIsMaterialPickerOpen(true)}>
                 <ImagePlus size={16} />
@@ -876,20 +861,12 @@ export const WorkbenchPage = () => {
               uploadedAssets={displayAssets}
               textareaRef={promptInputRef}
             />
-            <div className="prompt-tools-row">
-              <select value={selectedTextModelId ?? ""} onChange={(event) => setSelectedTextModelId(Number(event.target.value) || null)} disabled={!textModels.length}>
-                {textModels.length ? textModels.map((model) => <option key={model.id} value={model.id}>{model.name}</option>) : <option value="">暂无文本模型</option>}
-              </select>
-              <Button variant="secondary" type="button" disabled={!prompt.trim() || !selectedTextModelId || isOptimizingPrompt} isLoading={isOptimizingPrompt} onClick={() => void optimizeCurrentPrompt()}>
-                优化提示词
-              </Button>
-            </div>
           </section>
         </div>
 
         <div className="generate-bar">
           <Button type="button" disabled={!canSubmit} onClick={submitTask}>
-            {isSubmitting ? <Loader2 className="spin-icon" size={17} /> : <Zap size={17} />}
+            {isSubmitting ? <LoadingIndicator className="spin-icon" size={17} /> : <Zap size={17} />}
             开始生成
             <span>（消耗 {isQuoteLoading ? "--" : quote === null ? "--" : quote * outputCount} 积分）</span>
           </Button>
@@ -958,7 +935,7 @@ export const WorkbenchPage = () => {
                         </div>
                       </div>
                       <span className={`status-badge status-badge--${task.status}`}>
-                        {isProcessingTask ? <Loader2 className="spin-icon" size={14} /> : null}
+                        {isProcessingTask ? <LoadingIndicator className="spin-icon" size={14} /> : null}
                         {getImageTaskStatusLabel(task, statusCopy)}
                       </span>
                     </div>
@@ -1036,8 +1013,7 @@ export const WorkbenchPage = () => {
                             </div>
                           ) : (
                             <div className="processing-tile">
-                              <Loader2 className="spin-icon" size={28} />
-                              <span>{getImageTaskProcessingMessage(task)}</span>
+                              <LoadingArt label={getImageTaskProcessingMessage(task)} hint="完成后，作品将在这里呈现" compact />
                             </div>
                           )}
                         </div>
@@ -1052,7 +1028,7 @@ export const WorkbenchPage = () => {
                     aria-pressed={task.is_collected}
                     onClick={() => void toggleTaskCollection(task)}
                   >
-                    {collectingTaskIds.includes(task.id) ? <Loader2 className="spin-icon" size={17} /> : <FolderPlus size={17} />}
+                    {collectingTaskIds.includes(task.id) ? <LoadingIndicator className="spin-icon" size={17} /> : <FolderPlus size={17} />}
                     {task.is_collected ? "已收藏" : "收藏"}
                   </button>
                   <button
@@ -1081,7 +1057,7 @@ export const WorkbenchPage = () => {
                     title={task.input_images.length ? "复用原图和文案重新生成" : "没有可复用的原图"}
                     onClick={() => void regenerateTask(task)}
                   >
-                    {regeneratingTaskIds.includes(task.id) ? <Loader2 className="spin-icon" size={17} /> : <RotateCcw size={17} />}
+                    {regeneratingTaskIds.includes(task.id) ? <LoadingIndicator className="spin-icon" size={17} /> : <RotateCcw size={17} />}
                     重新生成
                   </button>
                   <button

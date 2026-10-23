@@ -1,3 +1,4 @@
+import { CanvasLoading } from "@/components/canvas/canvas-loading";
 import { useEffect, useState } from "react";
 import { App, Button } from "antd";
 import { Outlet } from "react-router-dom";
@@ -44,7 +45,7 @@ export function HostShell() {
         return () => window.removeEventListener("message", receive);
     }, []);
     if (!booted) return <main className="flex h-dvh flex-col items-center justify-center gap-4 bg-background text-foreground" role="status">
-        <p>{bootError || "正在载入你的画布…"}</p>
+        {bootError ? <p>{bootError}</p> : <CanvasLoading />}
         {bootError && <Button onClick={() => setAttempt((value) => value + 1)}>重试</Button>}
     </main>;
     return <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
