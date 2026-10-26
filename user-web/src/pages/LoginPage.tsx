@@ -69,7 +69,7 @@ export const LoginPage = () => {
           </span>
           <p className="eyebrow">欢迎回来</p>
           <h2 id="login-title">继续你的创作</h2>
-          <p className="auth-card__hint">登录后继续使用你的 AI 工作流。</p>
+          <p className="auth-card__hint">登录你的账号，让灵感接着发生。</p>
         </div>
 
         {locationState?.sessionExpired ? <div className="notice notice--warning">登录已过期，请重新登录。</div> : null}
@@ -82,6 +82,8 @@ export const LoginPage = () => {
             </span>
             <input
               autoComplete="username"
+              type="email"
+              inputMode="email"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               placeholder="请输入邮箱账号"
@@ -115,7 +117,7 @@ export const LoginPage = () => {
           {formError || loginError ? <div className="notice notice--error">{formError ?? loginError}</div> : null}
 
           <Button fullWidth isLoading={isSubmitting} type="submit">
-            立即登录
+            登录，开始创作
           </Button>
         </form>
 
