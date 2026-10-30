@@ -1,3 +1,4 @@
+import { CutoutPage } from "@/pages/CutoutPage";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
@@ -71,6 +72,7 @@ export const App = () => {
             }
           />
           <Route path="/create/canvas" element={null} />
+          <Route path="/create/cutout" element={<CutoutPage />} />
           <Route path="/create/edit" element={<WorkbenchPage />} />
           <Route path="/create/text-to-image" element={<CreativeToolPage mode="text-to-image" />} />
           <Route path="/create/text-to-video" element={<CreativeToolPage mode="text-to-video" />} />

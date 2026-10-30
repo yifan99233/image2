@@ -234,6 +234,7 @@
   font-weight: 850;
 }
 
+.batch-generate-output-count > select,
 .batch-generate-output-count > input[type="number"] {
   appearance: textfield;
   background: var(--surface);
@@ -253,6 +254,7 @@
   opacity: 0.7;
 }
 
+.batch-generate-output-count > select:focus-visible,
 .batch-generate-output-count > input[type="number"]:focus-visible {
   border-color: rgb(6 182 212 / 50%);
   outline: 2px solid rgb(6 182 212 / 18%);
@@ -1040,4 +1042,11 @@ video.openagent-video-case__media {
 .invite-code-card strong {
   color: var(--primary-strong);
   font-size: 28px;
+}
+
+.batch-generate-output-count > select {
+  appearance: auto;
+  min-height: 44px;
+  font-size: 16px;
+  cursor: pointer;
 }

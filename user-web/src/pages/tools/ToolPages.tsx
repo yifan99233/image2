@@ -1438,18 +1438,16 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
             <span>{promptLabel}</span>
             {config.workType === "text_to_image" ? (
               <div className="batch-generate-output-count" aria-label="一次生成张数">
-                <label htmlFor="text-to-image-output-count">生成张数 n</label>
-                <input
+                <label htmlFor="text-to-image-output-count">生成张数</label>
+                <select
                   id="text-to-image-output-count"
-                  type="number"
-                  min={1}
-                  max={MAX_STANDARD_OUTPUT_COUNT}
                   value={outputCount}
-                  onChange={(event) => {
-                    const next = Number(event.target.value);
-                    setOutputCount(Number.isFinite(next) ? Math.min(Math.max(1, Math.floor(next)), MAX_STANDARD_OUTPUT_COUNT) : 1);
-                  }}
-                />
+                  onChange={(event) => setOutputCount(Number(event.target.value))}
+                >
+                  {Array.from({ length: MAX_STANDARD_OUTPUT_COUNT }, (_, index) => index + 1).map((count) => (
+                    <option key={count} value={count}>{count} 张</option>
+                  ))}
+                </select>
                 <small>范围 1–{MAX_STANDARD_OUTPUT_COUNT} 张，默认 1 张。</small>
               </div>
             ) : null}
