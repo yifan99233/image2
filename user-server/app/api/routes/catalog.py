@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from io import BytesIO
 from time import perf_counter
+from typing import Annotated
 from uuid import UUID, uuid4
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -22,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.api.routes.batch_groups import MAX_GROUPED_OUTPUTS, validate_batch_groups
 from app.api.routes.catalog_exports import ExportItem, build_export_archive, stream_export_archive
-from app.api.routes.catalog_serializers import USER_IMAGE_TASK_FAILURE_MESSAGE, canonicalize_asset_url, input_urls_from_row, serialize_gallery_work, serialize_task, serialize_task_status, serialize_user_work
+from app.api.routes.catalog_serializers import USER_IMAGE_TASK_FAILURE_MESSAGE, output_assets_from_row, canonicalize_asset_url, input_urls_from_row, serialize_gallery_work, serialize_task, serialize_task_status, serialize_user_work
 from app.api.routes.ux import get_max_batch_tasks, get_qiniu_storage_enabled
 from app.core.config import settings
 from app.core.exceptions import BusinessError
@@ -30,6 +31,7 @@ from app.core.responses import StandardResponse, ok
 from app.db.session import AsyncSessionLocal, get_db
 from app.models.credit import CreditLedger, UserCreditAccount
 from app.models.user import User
+from app.models.image_asset import ImageAsset
 from app.services.customer_pricing import customer_price
 from app.services.asset_urls import asset_url_variants
 from app.services.image_generation import (
@@ -40,13 +42,17 @@ from app.services.image_generation import (
     MODEL_TIMEOUT_MESSAGE,
     RESULT_DOWNLOAD_TIMEOUT_CODE,
     GenerationModelConfig,
+    GeneratedImage,
     generate_image,
+    image_output_capabilities,
+    validate_image_output_options,
     generate_video,
     pack_video_task_aspect,
     resume_video_job,
     unpack_video_task_aspect,
 )
-from app.services.image_parameters import DEFAULT_IMAGE_QUALITY, normalize_image_quality
+from app.services.image_parameters import DEFAULT_IMAGE_QUALITY, normalize_image_quality, image_output_options
+from app.services.image_provider_models import images_per_generation, is_banana_images_model
 from app.services.image_uploads import (
     create_generated_image_asset,
     store_generated_image_object,
@@ -169,6 +175,8 @@ async def run_image_generation_in_executor(
     aspect_ratio: str,
     quality: str = DEFAULT_IMAGE_QUALITY,
     *,
+    size: str | None = None,
+    output_format: str | None = None,
     task_no: str = "",
     task_id: int | None = None,
     user_id: int | None = None,
@@ -268,6 +276,7 @@ async def run_image_generation_in_executor(
                     resolution,
                     aspect_ratio,
                     quality=quality,
+                    **image_output_options({"size": size, "output_format": output_format}),
                     client_reference=task_no,
                     **callback_kwargs,
                 )
@@ -450,6 +459,8 @@ image_tasks_table = Table(
     Column("resolution", String),
     Column("aspect_ratio", String),
     Column("quality", String),
+    Column("size", String),
+    Column("output_format", String),
     Column("credit_cost", Numeric(20, 2)),
     Column("pricing_snapshot", JSONB),
     Column("status", String),
@@ -457,6 +468,8 @@ image_tasks_table = Table(
     Column("input_image_url", String),
     Column("input_image_urls", Text),
     Column("output_image_url", String),
+    Column("output_image_assets", JSONB),
+    Column("output_expired_at", DateTime(timezone=True)),
     Column("output_image_r2_url", String),
     Column("output_image_r2_expires_at", DateTime(timezone=True)),
     Column("is_collected", Boolean),
@@ -497,6 +510,7 @@ image_model_prices_table = Table(
     Column("output_count", Integer),
     Column("credit_cost", Integer),
     Column("fixed_surcharge", Numeric(20, 2)),
+    Column("quality", String),
     Column("version", Integer),
     Column("is_active", Boolean),
     Column("effective_at", DateTime(timezone=True)),
@@ -565,6 +579,35 @@ async def resolve_input_image_urls(
     payload: dict,
     max_input_images: int,
 ) -> list[str]:
+    # Uploaded assets are identified by their database IDs. The web client also
+    # sends their URLs so URL-only callers (such as the canvas) remain
+    # supported, but a display/CDN URL is not authoritative when an owned ID is
+    # present: its hostname can legitimately change between upload and submit.
+    input_image_ids = [
+        int(asset_id)
+        for asset_id in payload.get("input_image_ids") or []
+        if int(asset_id) > 0
+    ]
+    if len(input_image_ids) > max_input_images:
+        raise BusinessError(code=40001, message=f"当前模型最多支持 {max_input_images} 张输入图")
+    if input_image_ids:
+        rows = await db.execute(
+            select(image_assets_table.c.id, image_assets_table.c.url, image_assets_table.c.local_url).where(
+                image_assets_table.c.id.in_(input_image_ids),
+                image_assets_table.c.site_id == site_id,
+                image_assets_table.c.user_id == user_id,
+            )
+        )
+        url_by_id = {
+            int(row.id): getattr(row, "url", None) or row.local_url
+            for row in rows
+            if getattr(row, "url", None) or row.local_url
+        }
+        missing_ids = [asset_id for asset_id in input_image_ids if asset_id not in url_by_id]
+        if missing_ids:
+            raise BusinessError(code=40420, message="包含不存在的输入图片", status_code=404)
+        return [url_by_id[asset_id] for asset_id in input_image_ids]
+
     submitted_urls = [
         str(url).strip()
         for url in payload.get("input_image_urls") or []
@@ -622,29 +665,7 @@ async def resolve_input_image_urls(
             for variant in asset_url_variants(str(value))
         }
         return [browser_by_submitted_url[url] for url in submitted_urls]
-
-    input_image_ids = [int(asset_id) for asset_id in payload.get("input_image_ids") or [] if int(asset_id) > 0]
-    if len(input_image_ids) > max_input_images:
-        raise BusinessError(code=40001, message=f"当前模型最多支持 {max_input_images} 张输入图")
-    urls: list[str] = []
-    if input_image_ids:
-        rows = await db.execute(
-            select(image_assets_table.c.id, image_assets_table.c.url, image_assets_table.c.local_url).where(
-                image_assets_table.c.id.in_(input_image_ids),
-                image_assets_table.c.site_id == site_id,
-                image_assets_table.c.user_id == user_id,
-            )
-        )
-        url_by_id = {
-            int(row.id): getattr(row, "url", None) or row.local_url
-            for row in rows
-            if getattr(row, "url", None) or row.local_url
-        }
-        missing_ids = [asset_id for asset_id in input_image_ids if asset_id not in url_by_id]
-        if missing_ids:
-            raise BusinessError(code=40420, message="包含不存在的输入图片", status_code=404)
-        urls = [url_by_id[asset_id] for asset_id in input_image_ids]
-    return urls
+    return []
 
 
 async def get_or_create_credit_account_for_update(db: AsyncSession, user_id: int) -> UserCreditAccount:
@@ -965,7 +986,11 @@ async def generation_model_config(
     row = result.first()
     if row is None or not row.is_active:
         raise BusinessError("模型供应商不可用", code=40405, status_code=404)
+    from app.services.model_cdn import for_model
+    cdn = for_model(site_id, model_id)
     return GenerationModelConfig(
+        cdn_key=cdn.cdn_key if cdn else "",
+        native_image_base_url=cdn.result_base_url if cdn else "",
         provider_code=row.provider_code or "",
         provider_name=row.provider_name or "",
         base_url=row.base_url or "",
@@ -1051,7 +1076,7 @@ async def mark_image_task_status(
         timeout_seconds = await db.scalar(
             select(image_tasks_table.c.timeout_seconds).where(image_tasks_table.c.id == task_id)
         )
-        values["worker_started_at"] = now
+        values["worker_started_at"] = func.coalesce(image_tasks_table.c.worker_started_at, now)
         values["worker_heartbeat_at"] = now
         values["deadline_at"] = func.coalesce(
             image_tasks_table.c.deadline_at,
@@ -1143,6 +1168,29 @@ async def finish_image_task_failed(
     return result.first() is not None
 
 
+async def store_generated_image_collection(
+    db: AsyncSession, *, generated: GeneratedImage, user_id: int, site_id: int,
+    qiniu_storage_enabled: bool, storage_mode: str,
+) -> tuple[ImageAsset, list[dict]]:
+    assets = []
+    for image in (generated, *getattr(generated, "additional_images", ())):
+        stored = await run_generated_image_storage_in_executor(
+            user_id=user_id, content=image.content, mime_type=image.mime_type,
+            qiniu_storage_enabled=qiniu_storage_enabled, storage_mode=storage_mode,
+            source_url=getattr(image, "source_url", None), hot_url=getattr(image, "hot_url", None),
+        )
+        assets.append(await create_generated_image_asset(
+            db=db, user_id=user_id, site_id=site_id, stored_image=stored,
+        ))
+        # refresh() opens a read transaction; return its connection before the
+        # next potentially slow CDN upload. Sessions retain loaded attributes.
+        await db.commit()
+    manifest = [{"url": asset.url, "r2_url": asset.r2_url,
+                 "r2_expires_at": asset.r2_expires_at.isoformat() if asset.r2_expires_at else None}
+                for asset in assets]
+    return assets[0], manifest
+
+
 async def finish_image_task_succeeded(
     db: AsyncSession,
     task_id: int,
@@ -1150,6 +1198,7 @@ async def finish_image_task_succeeded(
     *,
     output_image_r2_url: str | None = None,
     output_image_r2_expires_at: datetime | None = None,
+    output_image_assets: list[dict] | None = None,
     provider_request_id: str = "",
     provider_request_snapshot: dict | None = None,
     provider_response_summary: dict | None = None,
@@ -1161,6 +1210,7 @@ async def finish_image_task_succeeded(
         .values(
             status="succeeded",
             output_image_url=output_image_url,
+            output_image_assets=output_image_assets,
             output_image_r2_url=output_image_r2_url or None,
             output_image_r2_expires_at=output_image_r2_expires_at,
             failure_message=None,
@@ -1586,6 +1636,8 @@ async def execute_image_task(
     resolution: str = "",
     aspect_ratio: str = "",
     quality: str = DEFAULT_IMAGE_QUALITY,
+    size: str | None = None,
+    output_format: str | None = None,
 ) -> tuple[str, str | None]:
     retry_delay = max(1, settings.image_generation_rate_limit_retry_delay_seconds)
     task_started_at = perf_counter()
@@ -1673,6 +1725,7 @@ async def execute_image_task(
                     resolution,
                     aspect_ratio,
                     quality,
+                    **image_output_options({"size": size, "output_format": output_format}),
                     task_no=task_no,
                     task_id=task_id,
                     user_id=user_id,
@@ -1702,16 +1755,10 @@ async def execute_image_task(
             )
             save_started_at = perf_counter()
             qiniu_storage_enabled = await get_qiniu_storage_enabled(db, site_id)
-            stored_image = await run_generated_image_storage_in_executor(
-                user_id=user_id,
-                content=generated.content,
-                mime_type=generated.mime_type,
-                qiniu_storage_enabled=qiniu_storage_enabled,
-                storage_mode=storage_mode,
-                source_url=getattr(generated, "source_url", None),
-                hot_url=getattr(generated, "hot_url", None),
+            asset, output_assets = await store_generated_image_collection(
+                db, generated=generated, user_id=user_id, site_id=site_id,
+                qiniu_storage_enabled=qiniu_storage_enabled, storage_mode=storage_mode,
             )
-            asset = await create_generated_image_asset(db=db, user_id=user_id, site_id=site_id, stored_image=stored_image)
             logger.warning(
                 "image_task_timing stage=save_generated_image task_no=%s task_id=%s attempt=%s elapsed=%.3fs url=%s",
                 task_no,
@@ -1727,6 +1774,7 @@ async def execute_image_task(
                 asset.url,
                 output_image_r2_url=asset.r2_url,
                 output_image_r2_expires_at=asset.r2_expires_at,
+                output_image_assets=output_assets,
                 provider_request_id=generated.provider_request_id,
                 provider_request_snapshot=generated.provider_request_snapshot,
                 provider_response_summary=generated.provider_response_summary,
@@ -1799,6 +1847,8 @@ async def execute_image_task_session(
     resolution: str = "",
     aspect_ratio: str = "",
     quality: str = DEFAULT_IMAGE_QUALITY,
+    size: str | None = None,
+    output_format: str | None = None,
 ) -> None:
     async with AsyncSessionLocal() as db:
         await execute_image_task(
@@ -1815,6 +1865,7 @@ async def execute_image_task_session(
             resolution=resolution,
             aspect_ratio=aspect_ratio,
             quality=quality,
+            size=size, output_format=output_format,
         )
 
 
@@ -1844,6 +1895,7 @@ async def execute_claimed_image_task(payload: dict) -> None:
     resolution = str(payload.get("resolution") or "")
     aspect_ratio = str(payload.get("aspect_ratio") or "")
     quality = normalize_image_quality(payload.get("quality"))
+    output_options = image_output_options(payload)
     task_timeout_seconds = normalized_model_task_timeout_seconds(payload.get("timeout_seconds"))
     task_disable_retry = bool(payload.get("disable_retry"))
     deadline_at = payload.get("deadline_at")
@@ -1952,6 +2004,7 @@ async def execute_claimed_image_task(payload: dict) -> None:
                 resolution,
                 aspect_ratio,
                 quality,
+                **output_options,
                 task_no=task_no,
                 task_id=task_id,
                 user_id=user_id,
@@ -1977,17 +2030,12 @@ async def execute_claimed_image_task(payload: dict) -> None:
             save_started_at = perf_counter()
             async with AsyncSessionLocal() as db:
                 qiniu_storage_enabled = await get_qiniu_storage_enabled(db, site_id)
-            stored_image = await run_generated_image_storage_in_executor(
-                user_id=user_id,
-                content=generated.content,
-                mime_type=generated.mime_type,
-                qiniu_storage_enabled=qiniu_storage_enabled,
-                storage_mode=storage_mode,
-                source_url=getattr(generated, "source_url", None),
-                hot_url=getattr(generated, "hot_url", None),
-            )
             async with AsyncSessionLocal() as db:
-                asset = await create_generated_image_asset(db=db, user_id=user_id, site_id=site_id, stored_image=stored_image)
+                asset, output_assets = await store_generated_image_collection(
+                    db, generated=generated, user_id=user_id, site_id=site_id,
+                    qiniu_storage_enabled=qiniu_storage_enabled, storage_mode=storage_mode,
+                )
+            async with AsyncSessionLocal() as db:
                 logger.warning(
                     "image_task_timing stage=save_generated_image task_no=%s task_id=%s attempt=%s elapsed=%.3fs url=%s",
                     task_no,
@@ -2003,6 +2051,7 @@ async def execute_claimed_image_task(payload: dict) -> None:
                     asset.url,
                     output_image_r2_url=asset.r2_url,
                     output_image_r2_expires_at=asset.r2_expires_at,
+                    output_image_assets=output_assets,
                     provider_request_id=generated.provider_request_id,
                     provider_request_snapshot=generated.provider_request_snapshot,
                     provider_response_summary=generated.provider_response_summary,
@@ -2085,102 +2134,122 @@ async def queued_image_task_payloads_for_dispatch(db: AsyncSession, *, limit: in
         await db.rollback()
         return []
     current_time = datetime.now(UTC)
-    # Inspect a wider candidate window than the number of free slots. A large
-    # queued batch from one saturated user/model must not hide later users.
+    # Page through lightweight rows, excluding users/models as soon as their
+    # capacity is exhausted. Increasing a fixed lookahead cannot prevent a
+    # large batch from hiding all eligible tasks behind it.
     candidate_limit = min(max(limit * 4, limit + 64), 4000)
-    rows = (
-        await db.execute(
-            select(
-                image_tasks_table.c.id,
-                image_tasks_table.c.task_no,
-                image_tasks_table.c.site_id,
-                image_tasks_table.c.user_id,
-                image_tasks_table.c.model_id,
-                image_tasks_table.c.credit_cost,
-                image_tasks_table.c.created_at,
-                image_tasks_table.c.timeout_seconds,
-                image_tasks_table.c.disable_retry,
-            )
-            .where(
-                image_tasks_table.c.status == "queued",
-            )
-            .order_by(image_tasks_table.c.created_at.asc(), image_tasks_table.c.id.asc())
-            .limit(candidate_limit)
-            .with_for_update(skip_locked=True)
-        )
-    ).mappings().all()
-    if not rows:
-        return []
-
-    user_ids = sorted({int(row["user_id"]) for row in rows})
-    model_ids = sorted({int(row["model_id"]) for row in rows})
-    user_limits = {
-        int(row.id): max(1, int(row.image_concurrency_limit or 1))
-        for row in await db.execute(select(User.id, User.image_concurrency_limit).where(User.id.in_(user_ids)))
-    }
-    model_limits = {
-        int(row.id): max(0, int(row.concurrency_limit or 0))
-        for row in await db.execute(select(image_models_table.c.id, image_models_table.c.concurrency_limit).where(image_models_table.c.id.in_(model_ids)))
-    }
-    user_running = {
-        int(row.user_id): int(row.count)
-        for row in (
-            await db.execute(
-                select(image_tasks_table.c.user_id, func.count().label("count"))
-                .where(
-                    image_tasks_table.c.user_id.in_(user_ids),
-                    image_tasks_table.c.status == "running",
-                    active_image_task_condition(current_time),
-                )
-                .group_by(image_tasks_table.c.user_id)
-            )
-        )
-    }
-    model_running = {
-        int(row.model_id): int(row.count)
-        for row in (
-            await db.execute(
-                select(image_tasks_table.c.model_id, func.count().label("count"))
-                .where(
-                    image_tasks_table.c.model_id.in_(model_ids),
-                    image_tasks_table.c.status == "running",
-                    active_image_task_condition(current_time),
-                )
-                .group_by(image_tasks_table.c.model_id)
-            )
-        )
-    }
     selected: list[dict] = []
-    for row in rows:
-        # The candidate window is wider for fairness, but claims must fit the
-        # actual free execution slots passed by the dispatcher.
-        if len(selected) >= limit:
+    user_limits: dict[int, int] = {}
+    model_limits: dict[int, int] = {}
+    user_running: dict[int, int] = {}
+    model_running: dict[int, int] = {}
+    cursor = None
+    while len(selected) < limit:
+        candidate_filters = []
+        saturated_users = [uid for uid, cap in user_limits.items() if user_running.get(uid, 0) >= cap]
+        saturated_models = [mid for mid, cap in model_limits.items() if cap > 0 and model_running.get(mid, 0) >= cap]
+        if saturated_users:
+            candidate_filters.append(image_tasks_table.c.user_id.not_in(saturated_users))
+        if saturated_models:
+            candidate_filters.append(image_tasks_table.c.model_id.not_in(saturated_models))
+        if cursor is not None:
+            candidate_filters.append(or_(
+                image_tasks_table.c.created_at > cursor[0],
+                and_(image_tasks_table.c.created_at == cursor[0], image_tasks_table.c.id > cursor[1]),
+            ))
+        rows = (
+            await db.execute(
+                select(
+                    image_tasks_table.c.id,
+                    image_tasks_table.c.task_no,
+                    image_tasks_table.c.site_id,
+                    image_tasks_table.c.user_id,
+                    image_tasks_table.c.model_id,
+                    image_tasks_table.c.credit_cost,
+                    image_tasks_table.c.created_at,
+                    image_tasks_table.c.timeout_seconds,
+                    image_tasks_table.c.disable_retry,
+                )
+                .where(
+                    image_tasks_table.c.status == "queued",
+                )
+                .where(*candidate_filters)
+                .order_by(image_tasks_table.c.created_at.asc(), image_tasks_table.c.id.asc())
+                .limit(candidate_limit)
+                .with_for_update(skip_locked=True)
+            )
+        ).mappings().all()
+        if not rows:
             break
-        user_id = int(row["user_id"])
-        model_id = int(row["model_id"])
-        user_limit = user_limits.get(user_id, 1)
-        model_limit = model_limits.get(model_id, 0)
-        if user_running.get(user_id, 0) >= user_limit:
-            continue
-        if model_limit > 0 and model_running.get(model_id, 0) >= model_limit:
-            continue
-        timeout_seconds = normalized_model_task_timeout_seconds(row.get("timeout_seconds"))
-        selected.append(
-            {
-                "task_id": int(row["id"]),
-                "task_no": row["task_no"],
-                "site_id": int(row["site_id"]),
-                "user_id": user_id,
-                "model_id": model_id,
-                "credit_cost": Decimal(str(row["credit_cost"] or 0)),
-                "timeout_seconds": timeout_seconds,
-                "disable_retry": bool(row["disable_retry"]),
-            }
-        )
-        user_running[user_id] = user_running.get(user_id, 0) + 1
-        model_running[model_id] = model_running.get(model_id, 0) + 1
+        cursor = (rows[-1]["created_at"], rows[-1]["id"])
+        user_ids = sorted({int(row["user_id"]) for row in rows} - user_limits.keys())
+        model_ids = sorted({int(row["model_id"]) for row in rows} - model_limits.keys())
+        user_limits.update({
+            int(row.id): max(1, int(row.image_concurrency_limit or 1))
+            for row in await db.execute(select(User.id, User.image_concurrency_limit).where(User.id.in_(user_ids)))
+        })
+        model_limits.update({
+            int(row.id): max(0, int(row.concurrency_limit or 0))
+            for row in await db.execute(select(image_models_table.c.id, image_models_table.c.concurrency_limit).where(image_models_table.c.id.in_(model_ids)))
+        })
+        user_running.update({
+            int(row.user_id): int(row.count)
+            for row in (
+                await db.execute(
+                    select(image_tasks_table.c.user_id, func.count().label("count"))
+                    .where(
+                        image_tasks_table.c.user_id.in_(user_ids),
+                        image_tasks_table.c.status == "running",
+                        active_image_task_condition(current_time),
+                    )
+                    .group_by(image_tasks_table.c.user_id)
+                )
+            )
+        })
+        model_running.update({
+            int(row.model_id): int(row.count)
+            for row in (
+                await db.execute(
+                    select(image_tasks_table.c.model_id, func.count().label("count"))
+                    .where(
+                        image_tasks_table.c.model_id.in_(model_ids),
+                        image_tasks_table.c.status == "running",
+                        active_image_task_condition(current_time),
+                    )
+                    .group_by(image_tasks_table.c.model_id)
+                )
+            )
+        })
+        for row in rows:
+            # Include claims from this transaction in both concurrency budgets.
+            if len(selected) >= limit:
+                break
+            user_id = int(row["user_id"])
+            model_id = int(row["model_id"])
+            user_limit = user_limits.get(user_id, 1)
+            model_limit = model_limits.get(model_id, 0)
+            if user_running.get(user_id, 0) >= user_limit:
+                continue
+            if model_limit > 0 and model_running.get(model_id, 0) >= model_limit:
+                continue
+            timeout_seconds = normalized_model_task_timeout_seconds(row.get("timeout_seconds"))
+            selected.append(
+                {
+                    "task_id": int(row["id"]),
+                    "task_no": row["task_no"],
+                    "site_id": int(row["site_id"]),
+                    "user_id": user_id,
+                    "model_id": model_id,
+                    "credit_cost": Decimal(str(row["credit_cost"] or 0)),
+                    "timeout_seconds": timeout_seconds,
+                    "disable_retry": bool(row["disable_retry"]),
+                }
+            )
+            user_running[user_id] = user_running.get(user_id, 0) + 1
+            model_running[model_id] = model_running.get(model_id, 0) + 1
 
     if not selected:
+        await db.rollback()
         return []
     now = datetime.now(UTC)
     selected_ids = [int(task_payload["task_id"]) for task_payload in selected]
@@ -2215,6 +2284,8 @@ async def queued_image_task_payloads_for_dispatch(db: AsyncSession, *, limit: in
                 image_tasks_table.c.resolution,
                 image_tasks_table.c.aspect_ratio,
                 image_tasks_table.c.quality,
+                image_tasks_table.c.size,
+                image_tasks_table.c.output_format,
             ).where(image_tasks_table.c.id.in_(claimed_ids))
         )
         payload_by_id = {int(row.id): row for row in payload_rows}
@@ -2227,6 +2298,7 @@ async def queued_image_task_payloads_for_dispatch(db: AsyncSession, *, limit: in
                 "resolution": payload_by_id[task_id].resolution or "",
                 "aspect_ratio": payload_by_id[task_id].aspect_ratio or "",
                 "quality": normalize_image_quality(payload_by_id[task_id].quality),
+                **image_output_options({"size": payload_by_id[task_id].size, "output_format": payload_by_id[task_id].output_format}),
             }
             for payload in selected
             if (task_id := int(payload["task_id"])) in claimed_ids and task_id in payload_by_id
@@ -2311,6 +2383,7 @@ async def models(
         select(
             image_models_table.c.id,
             image_models_table.c.name,
+            image_models_table.c.vendor_model,
             image_models_table.c.code,
             image_models_table.c.work_type,
             image_models_table.c.capability_type,
@@ -2324,7 +2397,14 @@ async def models(
             image_models_table.c.max_output_images,
             image_models_table.c.is_public,
             image_models_table.c.storage_mode,
+            image_model_providers_table.c.code.label("provider_code"),
+            image_model_providers_table.c.name.label("provider_name"),
+            image_model_providers_table.c.base_url,
+            image_model_providers_table.c.access_mode,
         )
+        .select_from(image_models_table.outerjoin(image_model_providers_table,
+            and_(image_models_table.c.provider_id == image_model_providers_table.c.id,
+                 image_models_table.c.site_id == image_model_providers_table.c.site_id)))
         .where(
             image_models_table.c.site_id == current_user.site_id,
             image_models_table.c.is_active.is_(True),
@@ -2372,7 +2452,14 @@ async def models(
                 "risk_hint": model.risk_hint,
                 "max_input_images": model.max_input_images,
                 "max_output_images": model.max_output_images,
+                "images_per_generation": images_per_generation(model.vendor_model),
+                "supports_quality": not is_banana_images_model(model.vendor_model),
                 "storage_mode": normalize_storage_mode(getattr(model, "storage_mode", None)),
+                **image_output_capabilities(GenerationModelConfig(
+                    provider_code=model.provider_code or "", provider_name=model.provider_name or "",
+                    base_url=model.base_url or "", access_mode=model.access_mode or "api",
+                    api_key="", auth_type="bearer", timeout_seconds=120, vendor_model=model.vendor_model or "",
+                )),
                 "supported_resolutions": resolutions,
                 "supported_aspect_ratios": video_ratios if video_model else aspect_ratios,
                 "supported_durations": durations if video_model else [],
@@ -2412,6 +2499,10 @@ async def quote(
     resolution = str(payload.get("resolution") or "")
     aspect_ratio = str(payload.get("aspect_ratio") or "")
     quality = normalize_image_quality(payload.get("quality"))
+    output_options = image_output_options(payload)
+    if output_options:
+        config = await generation_model_config(db, model_id, current_user.site_id)
+        validate_image_output_options(config, output_options.get("size"), output_options.get("output_format"))
     duration = str(payload.get("duration") or "").strip()
     try:
         output_count = int(payload.get("n") or payload.get("output_count") or 1)
@@ -2425,11 +2516,13 @@ async def quote(
     if video_model and not duration and aspect_ratio and "|" in aspect_ratio:
         _, packed_duration = unpack_video_task_aspect(aspect_ratio)
         price_aspect_ratio = packed_duration or aspect_ratio
+    priced_quality = "medium" if quality == "auto" else quality
     price = await db.execute(
         select(
             image_model_prices_table.c.id,
             image_model_prices_table.c.version,
             image_model_prices_table.c.fixed_surcharge,
+            image_model_prices_table.c.quality,
             image_model_prices_table.c.work_type,
             image_model_prices_table.c.credit_cost,
             image_model_prices_table.c.effective_at,
@@ -2441,14 +2534,21 @@ async def quote(
             image_model_prices_table.c.resolution == resolution,
             image_model_prices_table.c.aspect_ratio == price_aspect_ratio,
             image_model_prices_table.c.output_count == output_count,
+            image_model_prices_table.c.quality.in_([priced_quality, "any"]),
             image_model_prices_table.c.is_active.is_(True),
         )
-        .order_by(image_model_prices_table.c.effective_at.desc(), image_model_prices_table.c.id.desc())
+        .order_by(
+            (image_model_prices_table.c.quality == priced_quality).desc(),
+            image_model_prices_table.c.effective_at.desc(),
+            image_model_prices_table.c.id.desc(),
+        )
     )
     price_row = price.first()
     if price_row is None:
         raise BusinessError(code=40004, message="当前模型规格未配置价格")
-    return ok(await customer_price(db, current_user, price_row))
+    result = await customer_price(db, current_user, price_row)
+    result["pricing"].update({"requested_quality": quality, "price_quality": price_row.quality})
+    return ok(result)
 
 
 @router.post("/image-tasks", response_model=StandardResponse[dict | list])
@@ -2490,6 +2590,7 @@ async def create_image_task(
     resolution = str(payload.get("resolution") or "")
     aspect_ratio = str(payload.get("aspect_ratio") or "")
     quality = normalize_image_quality(payload.get("quality"))
+    output_options = image_output_options(payload)
     duration = str(payload.get("duration") or "").strip()
     work_type_value = str(payload.get("work_type") or "image_edit")
     if is_video_work_type(work_type_value) or work_type_value in {"text_to_video", "image_to_video"}:
@@ -2533,6 +2634,7 @@ async def create_image_task(
                 resolution=resolution,
                 aspect_ratio=aspect_ratio,
                 quality=quality,
+                **output_options,
                 credit_cost=credit_cost,
                 pricing_snapshot=quote_result.data["pricing"],
                 status="queued",
@@ -2566,7 +2668,7 @@ async def create_image_task(
                 "input_image_urls": input_image_urls,
                 "resolution": resolution,
                 "aspect_ratio": aspect_ratio,
-                "quality": quality,
+                "quality": quality, **output_options,
             }
         ],
     )
@@ -2582,7 +2684,7 @@ async def create_image_task(
                 "prompt": payload.get("prompt", ""),
                 "resolution": resolution,
                 "aspect_ratio": aspect_ratio,
-                "quality": quality,
+                "quality": quality, **output_options,
                 "credit_cost": credit_cost,
                 "status": "queued",
                 "failure_message": None,
@@ -2626,6 +2728,7 @@ async def create_batch_image_tasks(
     resolution = str(payload.get("resolution") or "")
     aspect_ratio = str(payload.get("aspect_ratio") or "")
     quality = normalize_image_quality(payload.get("quality"))
+    output_options = image_output_options(payload)
     prompt = str(payload.get("prompt") or "").strip()
     if len(prompt) > MAX_BATCH_PROMPT_CHARS:
         raise BusinessError("批量提示词文件过大，请拆分后再提交", code=40041)
@@ -2646,7 +2749,7 @@ async def create_batch_image_tasks(
     if prompt_mode == "grouped":
         request_hash = hashlib.sha256(json.dumps({
             "model_id": model_id, "work_type": work_type, "resolution": resolution,
-            "aspect_ratio": aspect_ratio, "quality": quality, "groups": payload.get("groups"),
+            "aspect_ratio": aspect_ratio, "quality": quality, **output_options, "groups": payload.get("groups"),
         }, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     else:
         batch_id = batch_id[:64]
@@ -2760,7 +2863,7 @@ async def create_batch_image_tasks(
     if supplied_batch_id and prompt_mode != "grouped":
         request_hash = hashlib.sha256(json.dumps({
             "model_id": model_id, "work_type": work_type, "resolution": resolution,
-            "aspect_ratio": aspect_ratio, "quality": quality, "task_inputs": task_inputs,
+            "aspect_ratio": aspect_ratio, "quality": quality, **output_options, "task_inputs": task_inputs,
         }, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
     created_task_ids: list[int] = []
@@ -2818,6 +2921,7 @@ async def create_batch_image_tasks(
                     resolution=resolution,
                     aspect_ratio=aspect_ratio,
                     quality=quality,
+                    **output_options,
                     credit_cost=credit_cost,
                     pricing_snapshot=quote_result.data["pricing"],
                     status="queued",
@@ -2845,7 +2949,7 @@ async def create_batch_image_tasks(
                     "input_image_urls": task_input_urls,
                     "resolution": resolution,
                     "aspect_ratio": aspect_ratio,
-                    "quality": quality,
+                    "quality": quality, **output_options,
                 }
             )
 
@@ -2893,6 +2997,8 @@ async def _get_export_items(task_ids: list[int], batch_id: str, current_user: Us
             image_tasks_table.c.input_group_name,
             image_tasks_table.c.input_group_path,
             image_tasks_table.c.output_image_url,
+            image_tasks_table.c.output_image_assets,
+            image_tasks_table.c.output_expired_at,
             image_tasks_table.c.prompt,
             image_tasks_table.c.input_image_url,
             image_tasks_table.c.created_at,
@@ -2908,11 +3014,11 @@ async def _get_export_items(task_ids: list[int], batch_id: str, current_user: Us
         raise BusinessError("没有可导出的结果图", code=40033)
     return [
         ExportItem(
-            task_no=row.task_no,
-            url=row.output_image_url or "",
+            task_no=f"{row.task_no}-{output_index + 1}" if len(output_urls) > 1 else row.task_no,
+            url=output_url,
             work_type=getattr(row, "work_type", ""),
             status=getattr(row, "status", "succeeded"),
-            failure_message=getattr(row, "failure_message", "") or "",
+            failure_message="图片已过期" if row.output_expired_at else (getattr(row, "failure_message", "") or ""),
             prompt=getattr(row, "prompt", None) or "",
             source=getattr(row, "input_image_url", None) or "",
             batch_id=getattr(row, "batch_id", None) or "",
@@ -2921,6 +3027,8 @@ async def _get_export_items(task_ids: list[int], batch_id: str, current_user: Us
             group_path=getattr(row, "input_group_path", None) or "",
         )
         for row in rows
+        for output_urls in [[asset["url"] for asset in output_assets_from_row(row._mapping)] or [""]]
+        for output_index, output_url in enumerate(output_urls)
     ]
 
 
@@ -3030,11 +3138,12 @@ async def summarize_image_batches(db: AsyncSession, current_user: User, batch_id
         func.count().filter(image_tasks_table.c.status == "running").label("running_count"),
         func.count().filter(image_tasks_table.c.status == "succeeded").label("succeeded_count"),
         func.count().filter(image_tasks_table.c.status.in_(("failed", "refunded"))).label("failed_count"),
-        func.count().filter(and_(image_tasks_table.c.status == "succeeded", image_tasks_table.c.output_image_url.is_not(None))).label("downloadable_count"),
+        func.count().filter(and_(image_tasks_table.c.status == "succeeded", image_tasks_table.c.output_image_url.is_not(None), image_tasks_table.c.output_expired_at.is_(None))).label("downloadable_count"),
         func.count().filter(and_(own_failure, ~has_retry)).label("retryable_count"),
         func.count().filter(and_(own_failure, has_retry)).label("already_retried_count"),
         func.max(image_tasks_table.c.retry_of_batch_id).label("retry_of_batch_id"),
-    ).where(visibility, image_tasks_table.c.batch_id.in_(batch_ids))
+    ).where(visibility, image_tasks_table.c.batch_id.in_(batch_ids),
+            image_tasks_table.c.created_at >= datetime.now(UTC) - timedelta(days=7))
         .group_by(image_tasks_table.c.batch_id).order_by(desc(func.max(image_tasks_table.c.id))))
     items = [dict(row._mapping) for row in result]
     from app.models.image_batch_upload import ImageBatchUpload
@@ -3070,15 +3179,14 @@ async def image_task_batches(
     query = select(image_tasks_table.c.batch_id, latest_id).where(
         visibility, image_tasks_table.c.work_type == work_type,
         image_tasks_table.c.batch_id.is_not(None), image_tasks_table.c.batch_id != "",
-        image_tasks_table.c.created_at >= datetime.now(UTC) - timedelta(days=30),
+        image_tasks_table.c.created_at >= datetime.now(UTC) - timedelta(days=7),
     ).group_by(image_tasks_table.c.batch_id)
     if before_id is not None:
         query = query.having(func.max(image_tasks_table.c.id) < before_id)
     candidates = (await db.execute(query.order_by(desc(latest_id)).limit(limit + 1))).all()
     has_more = len(candidates) > limit
     candidates = candidates[:limit]
-    # Select recent batch IDs first, then count the entire batch, including
-    # tasks created just outside the list's thirty-day discovery window.
+    # List and counts use the same seven-day window as task history.
     items = await summarize_image_batches(db, current_user, [row.batch_id for row in candidates])
     if before_id is None and work_type == "batch_generate":
         from app.services.image_batch_uploads import upload_summaries
@@ -3137,7 +3245,7 @@ async def price_retry_sources(db: AsyncSession, current_user: User, sources: lis
     max_inputs: dict[int, int] = {}
     priced = []
     for source in sources:
-        spec = (source["model_id"], source["work_type"], source["resolution"], source["aspect_ratio"], source["quality"])
+        spec = (source["model_id"], source["work_type"], source["resolution"], source["aspect_ratio"], source["quality"], source.get("size"), source.get("output_format"))
         if spec not in prices:
             result = await quote(source["model_id"], {**source, "output_count": 1, "n": 1}, current_user, db)
             prices[spec] = result.data
@@ -3151,7 +3259,7 @@ async def price_retry_sources(db: AsyncSession, current_user: User, sources: lis
         if len(urls) > max_inputs[model_id]:
             raise BusinessError("原任务参考图数量超过当前模型限制，请重新编辑后提交", code=40043)
         priced.append({**source, "credit_cost": prices[spec]["credit_cost"], "pricing_snapshot": prices[spec]["pricing"], "timeout_seconds": policies[model_id][0], "disable_retry": policies[model_id][1], "input_image_urls": urls})
-    fingerprint = [{key: source[key] for key in ("id", "prompt", "model_id", "work_type", "resolution", "aspect_ratio", "quality", "input_image_urls", "credit_cost", "pricing_snapshot", "timeout_seconds", "disable_retry")} for source in priced]
+    fingerprint = [{key: source[key] for key in ("id", "prompt", "model_id", "work_type", "resolution", "aspect_ratio", "quality", "size", "output_format", "input_image_urls", "credit_cost", "pricing_snapshot", "timeout_seconds", "disable_retry")} for source in priced]
     token = hashlib.sha256(json.dumps(fingerprint, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()
     return priced, token
 
@@ -3195,6 +3303,7 @@ async def image_tasks(
     before_id: int | None = Query(default=None, ge=1),
     batch_id: str | None = Query(default=None, min_length=1, max_length=64),
     status: str | None = Query(default=None, pattern="^(pending|queued|running|succeeded|failed|refunded)$"),
+    work_types: Annotated[list[str] | None, Query(max_length=20)] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StandardResponse[list]:
@@ -3203,7 +3312,7 @@ async def image_tasks(
         query = (
             select(image_tasks_table, image_models_table.c.name.label("model_name"), owner_name_expr())
             .select_from(task_join_with_owner())
-            .where(task_visibility)
+            .where(task_visibility, image_tasks_table.c.created_at >= datetime.now(UTC) - timedelta(days=7))
             .order_by(desc(image_tasks_table.c.id))
         )
         if before_id is not None:
@@ -3212,6 +3321,8 @@ async def image_tasks(
             query = query.where(image_tasks_table.c.batch_id == batch_id)
         if status is not None:
             query = query.where(image_tasks_table.c.status.in_(("failed", "refunded")) if status == "failed" else image_tasks_table.c.status == status)
+        if work_types:
+            query = query.where(image_tasks_table.c.work_type.in_(work_types))
         query = query.limit(limit)
         result = await db.execute(query)
     except (OperationalError, ProgrammingError):
@@ -3237,6 +3348,8 @@ async def image_task_statuses(
             image_tasks_table.c.status,
             image_tasks_table.c.failure_message,
             image_tasks_table.c.output_image_url,
+            image_tasks_table.c.output_image_assets,
+            image_tasks_table.c.output_expired_at,
             image_tasks_table.c.output_image_r2_url,
             image_tasks_table.c.output_image_r2_expires_at,
             image_tasks_table.c.worker_started_at,
@@ -3264,7 +3377,7 @@ async def image_task_thumbnail(
 ) -> Response:
     row = (
         await db.execute(
-            select(image_tasks_table.c.output_image_url, image_tasks_table.c.input_image_url, image_tasks_table.c.input_image_urls).where(
+            select(image_tasks_table.c.output_image_url, image_tasks_table.c.output_expired_at, image_tasks_table.c.input_image_url, image_tasks_table.c.input_image_urls).where(
                 image_tasks_table.c.id == task_id,
             )
         )
@@ -3272,6 +3385,8 @@ async def image_task_thumbnail(
     # Return this read-only connection before waiting for thumbnail capacity or
     # fetching/decoding a large image. Image requests must not exhaust the API pool.
     await db.rollback()
+    if input_index is None and row and row["output_expired_at"]:
+        raise BusinessError("图片已过期", code=41040, status_code=410)
     if input_index is None:
         source_url = str(row["output_image_url"] or "") if row else ""
     else:
@@ -3360,6 +3475,7 @@ async def gallery(current_user: User = Depends(get_current_user), db: AsyncSessi
                 image_tasks_table.c.deleted_at.is_(None),
                 image_tasks_table.c.site_id == current_user.site_id,
                 image_tasks_table.c.status == "succeeded",
+                image_tasks_table.c.output_expired_at.is_(None),
                 image_tasks_table.c.output_image_url.is_not(None),
             )
             .order_by(image_tasks_table.c.gallery_sort_order.desc(), desc(image_tasks_table.c.gallery_featured_at), desc(image_tasks_table.c.created_at))
@@ -3390,6 +3506,8 @@ async def works(
                 image_tasks_table.c.input_image_url,
                 image_tasks_table.c.input_image_urls,
                 image_tasks_table.c.output_image_url,
+                image_tasks_table.c.output_image_assets,
+                image_tasks_table.c.output_expired_at,
                 image_tasks_table.c.output_image_r2_url,
                 image_tasks_table.c.output_image_r2_expires_at,
                 image_tasks_table.c.is_collected,
@@ -3404,6 +3522,7 @@ async def works(
             .where(
                 task_visibility,
                 image_tasks_table.c.status == "succeeded",
+                image_tasks_table.c.output_expired_at.is_(None),
                 image_tasks_table.c.output_image_url.is_not(None),
             )
             .order_by(desc(image_tasks_table.c.id))
@@ -3430,6 +3549,8 @@ async def update_work(work_id: int, payload: dict, current_user: User = Depends(
     if task is None:
         raise BusinessError("作品不存在或无权访问", code=40440, status_code=404)
     values = {}
+    if task.output_expired_at and (payload.get("is_collected") or payload.get("is_recommended")):
+        raise BusinessError("图片已过期", code=41040, status_code=410)
     if "is_collected" in payload:
         values["is_collected"] = bool(payload.get("is_collected"))
     if "is_recommended" in payload:

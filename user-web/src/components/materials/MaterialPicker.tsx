@@ -1,6 +1,7 @@
+import { LoadingState } from "@/components/ui/LoadingState";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronRight, Folder, ImagePlus, Loader2, Search, X } from "lucide-react";
+import { Check, ChevronRight, Folder, ImagePlus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { materialService } from "@/services/materials";
 import type { ImageAsset, MaterialAsset, MaterialFolder } from "@/types/api";
@@ -78,7 +79,11 @@ export function MaterialPicker({ open, onClose, onSelect }: MaterialPickerProps)
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
-    const focusTimer = window.setTimeout(() => searchInputRef.current?.focus(), 0);
+    const focusTimer = window.setTimeout(() => {
+      if (window.matchMedia?.("(hover: hover) and (pointer: fine)")?.matches) {
+        searchInputRef.current?.focus();
+      }
+    }, 0);
     document.addEventListener("keydown", onKeyDown);
     return () => {
       window.clearTimeout(focusTimer);
@@ -180,7 +185,7 @@ export function MaterialPicker({ open, onClose, onSelect }: MaterialPickerProps)
           <div className="material-picker__content">
             {error ? <div className="list-state list-state--error">{error}</div> : null}
             {isLoading ? (
-              <div className="empty-state"><Loader2 className="spin-icon" size={28} /><p>正在加载素材</p></div>
+              <LoadingState label="正在加载素材…" variant="cards" />
             ) : (
               <>
                 {folders.length && !deferredKeyword ? (

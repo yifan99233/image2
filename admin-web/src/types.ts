@@ -353,6 +353,7 @@ export type AgentConfig = {
   credit_to_agent_rate: number;
   text_group_id?: number | null;
   image_group_id?: number | null;
+  key_group_whitelist?: number[];
   create_api_key_path: string;
   user_concurrency: number;
   user_rpm_limit: number;
@@ -543,6 +544,7 @@ export type AdminImageModelInput = {
 };
 
 export type ModelPrice = {
+  quality?: "any" | "low" | "medium" | "high";
   id: number;
   model_id: number;
   model_name: string;
@@ -559,6 +561,7 @@ export type ModelPrice = {
 };
 
 export type ModelPriceBatchInput = {
+  quality?: "any" | "low" | "medium" | "high";
   model_id: number;
   work_types: string[];
   resolutions: string[];

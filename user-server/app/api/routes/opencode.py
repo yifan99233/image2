@@ -21,7 +21,7 @@ from app.schemas.auth import LoginRequest
 from app.services.rate_limit import login_rate_limit_key
 from app.services.agent_openapi import AgentAPIError, AgentAPIGroup, AgentAPIKey, AgentAPIKeyUsage, AgentOpenAPIClient
 from app.services.agent_usage import list_usage_for_api_keys, usage_record_out
-from app.services.agent_provisioning import agent_account_requires_sync, sync_agent_account
+from app.services.agent_provisioning import _configured_group_ids, agent_account_requires_sync, sync_agent_account
 from app.services.gateway_proxy import GatewayRoutingError, public_gateway_base_url_for_site
 from app.services.security import resolve_submitted_password, verify_password
 from app.services.site_scope import current_site_id
@@ -240,15 +240,15 @@ def agent_account_out(
 
 
 def _allowed_groups(config: AgentConfig, groups: list[AgentAPIGroup]) -> list[dict]:
-    allowed_ids = {int(group_id) for group_id in (config.text_group_id, config.image_group_id) if group_id}
+    allowed_ids = _configured_group_ids(config)
     by_id = {group.id: group for group in groups}
     return [
         {
             "id": group_id,
-            "name": by_id[group_id].name if group_id in by_id else f"分组 {group_id}",
-            "platform": by_id[group_id].platform if group_id in by_id else "",
+            "name": by_id[group_id].name,
+            "platform": by_id[group_id].platform,
         }
-        for group_id in sorted(allowed_ids)
+        for group_id in allowed_ids if group_id in by_id
     ]
 
 
@@ -258,7 +258,8 @@ def _key_out(
     groups: dict[int, dict],
     usage: AgentAPIKeyUsage | None = None,
 ) -> dict:
-    group = groups.get(int(key.group_id)) if key.group_id is not None else None
+    group_id = key.group_id if key.group_id is not None else mapping.group_id
+    group = (groups.get(int(group_id)) or {"id": int(group_id), "name": f"分组 {group_id}", "platform": ""}) if group_id is not None else None
     today_actual_cost = usage.today_actual_cost if usage is not None else key.today_actual_cost
     total_actual_cost = usage.total_actual_cost if usage is not None else key.total_actual_cost
     return {
@@ -295,6 +296,7 @@ def _mark_key_deleted(account: UserAgentAccount, mapping: UserAgentApiKey) -> No
     mapping.is_deleted = True
     if account.text_api_key_id == mapping.agent_key_id:
         account.text_api_key = None
+        account.status = "pending"
     if account.image_api_key_id == mapping.agent_key_id:
         account.image_api_key = None
 
@@ -389,7 +391,9 @@ async def _validate_member_key_quota(
     for mapping in mappings:
         if exclude_mapping_id is not None and int(mapping.id) == exclude_mapping_id:
             continue
-        if mapping.group_id != group_id:
+        # Extra groups must not each get a fresh copy of the member's category
+        # allowance. Preserve the existing default-text / other-groups categories.
+        if (mapping.group_id == config.text_group_id) != (group_id == config.text_group_id):
             continue
         key = live_by_id.get(int(mapping.agent_key_id))
         if key is None:
@@ -428,7 +432,6 @@ async def opencode_login(
         account is None
         or account.status != "active"
         or account.agent_user_id is None
-        or not account.text_api_key
         or not account.image_api_key
     ):
         message = account.failure_message if account and account.failure_message else "OpenAgent 账号初始化失败"
@@ -562,7 +565,7 @@ async def opencode_keys(
     config, account, client, token, live_keys, live_groups, agent_user, mappings = await _key_context(db, current_user)
     api_base_url = await public_api_base_url(db, current_user.site_id)
     group_payload = _allowed_groups(config, live_groups)
-    group_by_id = {int(group["id"]): group for group in group_payload}
+    group_by_id = {group.id: {"id": group.id, "name": group.name, "platform": group.platform} for group in live_groups}
     live_by_id = {int(key.id): key for key in live_keys if key.id is not None}
     usage_key_ids = {
         int(mapping.agent_key_id)
@@ -711,11 +714,11 @@ async def update_opencode_key(
     if mapping is None:
         raise BusinessError("Key 不存在", code=40484, status_code=404)
     allowed = {int(group["id"]): group for group in _allowed_groups(config, live_groups)}
-    if payload.group_id is not None and payload.group_id not in allowed:
-        raise BusinessError("该分组当前不可用", code=40085)
     live_key = next((item for item in live_keys if item.id == mapping.agent_key_id), None)
     if live_key is None:
         raise BusinessError("Key 已不存在，请刷新后重试", code=40484, status_code=404)
+    if payload.group_id is not None and payload.group_id != live_key.group_id and payload.group_id not in allowed:
+        raise BusinessError("该分组当前不可用", code=40085)
     if payload.group_id is not None and payload.group_id != live_key.group_id and live_key.quota_used > 0:
         raise BusinessError("已有用量的 Key 不能更换分组，请新建 Key", code=40087)
     if payload.quota is not None or payload.group_id is not None:
@@ -731,7 +734,7 @@ async def update_opencode_key(
             exclude_mapping_id=int(mapping.id),
         )
     remote_payload: dict[str, object] = {}
-    if payload.group_id is not None:
+    if payload.group_id is not None and payload.group_id != live_key.group_id:
         remote_payload["group_id"] = payload.group_id
     if payload.quota is not None:
         remote_payload["quota"] = float(payload.quota)

@@ -1,30 +1,12 @@
+import { LoadingArt } from "@/components/ui/LoadingArt";
+import { LoadingIndicator } from "@/components/ui/LoadingIndicator";
+import { CreationMobileTabs } from "@/components/layout/CreationMobileTabs";
+import { useCreationPanel } from "@/hooks/useCreationPanel";
+import { ImageOutputSettings, ImageCustomSizeChoice, ImageCustomSizeFields } from "@/components/images/ImageOutputSettings";
+import { imageOutputOptions } from "@/utils/imageOutputOptions";
 import { useEffect, useMemo, useRef, useState, type CompositionEvent, type CSSProperties, type ChangeEvent, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
-import {
-  Boxes,
-  Brush,
-  Camera,
-  ChevronDown,
-  ChevronUp,
-  CheckCircle2,
-  Clapperboard,
-  Download,
-  Edit3,
-  FileImage,
-  Film,
-  FolderPlus,
-  Image,
-  Images,
-  Layers3,
-  Loader2,
-  PackageOpen,
-  Play,
-  RotateCcw,
-  Shirt,
-  Sparkles,
-  Trash2,
-  UploadCloud,
-  X,
-} from "lucide-react";
+import { AlertTriangle, Boxes, Brush, Camera, ChevronDown, ChevronUp, CheckCircle2, Download, Edit3, FileImage, FolderPlus, PackageOpen, Play, RotateCcw, Shirt, Trash2, UploadCloud, X } from "lucide-react";
+import { Clapperboard, Film, Image, Images, Layers3, Sparkles } from "@/components/ui/StudioIcons";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { BatchGroupEditor } from "@/components/batch/BatchGroupEditor";
@@ -36,11 +18,10 @@ import { ModelPicker } from "@/components/models/ModelPicker";
 import { DEFAULT_IMAGE_QUALITY, IMAGE_QUALITY_OPTIONS } from "@/constants/imageGeneration";
 import { imageTaskService } from "@/services/imageTasks";
 import { modelService } from "@/services/models";
-import { promptService } from "@/services/prompt";
 import { uploadService } from "@/services/uploads";
 import { DEFAULT_MAX_BATCH_TASKS, defaultUserExperienceConfig, uxService } from "@/services/ux";
 import { workService } from "@/services/works";
-import type { ImageAsset, ImageModel, ImageQuality, ImageTask, ImageBatchSubmission } from "@/types/api";
+import type { ImageAsset, ImageModel, ImageQuality, ImageOutputFormat, ImageTask, ImageBatchSubmission } from "@/types/api";
 import { resolveAssetUrl } from "@/utils/assets";
 import { notifyCreditBalanceChanged } from "@/utils/creditEvents";
 import { downloadBlob, downloadMedia, startBrowserDownload } from "@/utils/download";
@@ -78,7 +59,7 @@ const creativeConfig: Record<ToolMode, ToolConfig> = {
   "text-to-image": {
     title: "文生图",
     icon: Image,
-    intro: "从文字提示词生成图片，模型、尺寸比例和积分消耗均来自后端配置。",
+    intro: "描述想要的画面，选择模型和画幅，开始你的创作。",
     workType: "text_to_image",
     needsUpload: false,
     submitLabel: "开始生成",
@@ -241,15 +222,14 @@ export const ProductToolPage = ({ mode }: { mode: ProductMode }) => (
 );
 
 const RealToolPage = ({ config }: { config: ToolConfig }) => {
+  const [mobilePanel, setMobilePanel] = useCreationPanel();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const batchZipInputRef = useRef<HTMLInputElement>(null);
   const promptFileInputRef = useRef<HTMLInputElement>(null);
   const templateMenuRef = useRef<HTMLDivElement>(null);
   const [models, setModels] = useState<ImageModel[]>([]);
-  const [textModels, setTextModels] = useState<ImageModel[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
-  const [selectedTextModelId, setSelectedTextModelId] = useState<number | null>(null);
   const [openConfigMenu, setOpenConfigMenu] = useState<"resolution" | "quality" | "aspect" | null>(null);
   const [uploadedAssets, setUploadedAssets] = useState<ImageAsset[]>([]);
   const [prompt, setPrompt] = useState("");
@@ -274,6 +254,8 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
   const [aspectRatio, setAspectRatio] = useState("");
   const [duration, setDuration] = useState("");
   const [quality, setQuality] = useState<ImageQuality>(DEFAULT_IMAGE_QUALITY);
+  const [imageSize, setImageSize] = useState("");
+  const [outputFormat, setOutputFormat] = useState<ImageOutputFormat | "">("");
   const [quote, setQuote] = useState<number | null>(null);
   const [priceBreakdown, setPriceBreakdown] = useState("");
   const [tasks, setTasks] = useState<ImageTask[]>([]);
@@ -287,7 +269,6 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
   const [isLoadingModels, setIsLoadingModels] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
   const [isMaterialPickerOpen, setIsMaterialPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewErrorAssetIds, setPreviewErrorAssetIds] = useState<number[]>([]);
@@ -419,6 +400,8 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
         setAspectRatio(preference.aspectRatio);
         setDuration(preference.duration);
         setQuality(preference.quality);
+        setImageSize(preference.imageSize ?? "");
+        setOutputFormat(preference.outputFormat ?? "");
         setError(null);
       })
       .catch((err) => {
@@ -432,26 +415,12 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
     };
   }, [config.workType]);
 
-  useEffect(() => {
-    let ignore = false;
-    modelService
-      .getModels("prompt_optimize")
-      .then((items) => {
-        if (ignore) return;
-        setTextModels(items);
-        setSelectedTextModelId(items[0]?.id ?? null);
-      })
-      .catch(() => undefined);
-    return () => {
-      ignore = true;
-    };
-  }, []);
 
   useEffect(() => {
     if (!selectedModelId || !resolution || !aspectRatio) return;
     if (isVideoTool && !duration) return;
-    writeToolPreference(config.workType, { modelId: selectedModelId, resolution, aspectRatio, duration, quality });
-  }, [selectedModelId, resolution, aspectRatio, duration, quality, config.workType, isVideoTool]);
+    writeToolPreference(config.workType, { modelId: selectedModelId, resolution, aspectRatio, duration, quality, imageSize, outputFormat });
+  }, [selectedModelId, resolution, aspectRatio, duration, quality, imageSize, outputFormat, config.workType, isVideoTool]);
 
   useEffect(() => {
     let ignore = false;
@@ -560,7 +529,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
     if (isVideoTool && !duration) return;
     let ignore = false;
     modelService
-      .quote(selectedModel.id, config.workType, resolution, aspectRatio, 1, isVideoTool ? duration : undefined)
+      .quote(selectedModel.id, config.workType, resolution, aspectRatio, 1, isVideoTool ? duration : undefined, isVideoTool || selectedModel.supports_quality === false ? "auto" : quality)
       .then((nextQuote) => {
         if (!ignore) {
           setQuote(nextQuote.credit_cost);
@@ -574,8 +543,9 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
     return () => {
       ignore = true;
     };
-  }, [resolution, aspectRatio, duration, selectedModel, config.workType, isVideoTool]);
+  }, [resolution, aspectRatio, duration, quality, selectedModel, config.workType, isVideoTool]);
 
+  const imagesPerGeneration = selectedModel?.images_per_generation ?? 1;
   const maxInputImages = selectedModel?.max_input_images ?? (config.needsUpload ? 8 : 0);
   const maxSelectableImages = config.workType === "batch_edit" ? batchEditMaxTasks : maxInputImages;
 
@@ -648,7 +618,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
     setIsUploading(true);
     setError(null);
     try {
-      const assets = await Promise.all(nextFiles.map((file) => uploadService.uploadImage(file)));
+      const assets = await Promise.all(nextFiles.map((file) => selectedModel ? uploadService.uploadImageForModel(file, selectedModel.id) : uploadService.uploadImage(file)));
       setUploadedAssets((current) => [...current, ...assets]);
       if (files.length > nextFiles.length) {
         setNotice(`已按上限上传 ${nextFiles.length} 张（最多 ${maxSelectableImages} 张）`);
@@ -713,21 +683,6 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
       }
       return merged;
     });
-  };
-
-  const optimizeCurrentPrompt = async () => {
-    if (!selectedTextModelId || !prompt.trim()) return;
-    setIsOptimizingPrompt(true);
-    setError(null);
-    try {
-      const result = await promptService.optimize(selectedTextModelId, prompt);
-      setPrompt(result.prompt);
-      setNotice("提示词已优化");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "提示词优化失败");
-    } finally {
-      setIsOptimizingPrompt(false);
-    }
   };
 
   const importBatchPrompts = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -813,10 +768,11 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
     setIsSubmitting(true);
     setError(null);
     try {
+      const outputOptions = !isVideoTool ? imageOutputOptions(selectedModel, imageSize, outputFormat) : {};
       const groups = usesGroupPrompts ? [] as NonNullable<import("@/types/api").CreateImageTaskRequest["groups"]> : undefined;
       let batchId: string | undefined;
       if (groups) {
-        const signature = JSON.stringify({ model: selectedModel.id, resolution, aspectRatio, quality, groups: batchGroups.map((group) => ({ id: group.id, name: group.name.trim(), prompt: groupPrompt(group, mappedGroupRows).trim(), outputs: group.outputs, images: group.images.map((image) => image.path) })) });
+        const signature = JSON.stringify({ model: selectedModel.id, resolution, aspectRatio, quality, imageSize, outputFormat, groups: batchGroups.map((group) => ({ id: group.id, name: group.name.trim(), prompt: groupPrompt(group, mappedGroupRows).trim(), outputs: group.outputs, images: group.images.map((image) => image.path) })) });
         if (groupSubmissionKey.current.signature !== signature) groupSubmissionKey.current = { signature, batchId: `batch-${crypto.randomUUID()}` };
         batchId = groupSubmissionKey.current.batchId;
         // Each group retains its reference order; model-bound uploads apply
@@ -839,7 +795,8 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
         prompt_mode: config.workType === "batch_edit" ? batchEditPromptMode : undefined,
         resolution,
         aspect_ratio: aspectRatio,
-        quality: isVideoTool ? undefined : quality,
+        quality: isVideoTool || selectedModel.supports_quality === false ? undefined : quality,
+        ...outputOptions,
         duration: isVideoTool ? duration : undefined,
         input_image_ids: usesGroupPrompts ? [] : uploadedAssets.map((asset) => asset.id),
         groups,
@@ -866,6 +823,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
           Array.from({ length: config.workType === "text_to_image" ? outputCount : 1 }, () => imageTaskService.createTask(singleOutputPayload, uploadedAssets)),
         );
       setTasks((current) => [...createdTasks, ...current]);
+      setMobilePanel("results");
       if (batchSubmission) {
         setLatestBatchId(batchSubmission.batch_id);
         groupSubmissionKey.current = { signature: "", batchId: "" };
@@ -878,7 +836,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
       notifyCreditBalanceChanged();
       setNotice(batchSubmission?.submission_status === "queued" || batchSubmission?.submission_status === "processing"
         ? `已接收 ${batchSubmission.task_count} 条提示词，正在后台创建任务，可在右侧查看进度`
-        : batchSubmission?.submission_error ?? (batchSubmission ? `已提交 ${batchSubmission.task_count} 个任务，可在右侧查看整批进度、失败原因并打包下载` : outputCount > 1 ? `已提交 ${outputCount} 张图，完成后会出现在任务记录和我的作品中` : "任务已提交，完成后会出现在任务记录和我的作品中"));
+        : batchSubmission?.submission_error ?? (batchSubmission ? `已提交 ${batchSubmission.task_count} 个任务，可在右侧查看整批进度、失败原因并打包下载` : outputCount > 1 ? `已提交 ${outputCount} ${imagesPerGeneration > 1 ? "组" : "张图"}，完成后会出现在任务记录和我的作品中` : "任务已提交，完成后会出现在任务记录和我的作品中"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "任务提交失败");
     } finally {
@@ -920,7 +878,11 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
     const output = task.output_images[0];
     if (!output) return;
     try {
-      await downloadMedia(output.url, `image2ai-${task.task_no}`, output.mime_type);
+      if (task.output_images.length > 1) {
+        startBrowserDownload(await imageTaskService.createExportDownloadUrl([task.id]));
+      } else {
+        await downloadMedia(output.url, `image2ai-${task.task_no}`, output.mime_type);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "下载失败，请稍后重试");
     }
@@ -944,6 +906,9 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
           prompt: task.prompt,
           resolution: task.resolution,
           aspect_ratio: task.aspect_ratio,
+          quality: task.quality ?? DEFAULT_IMAGE_QUALITY,
+          size: task.size ?? undefined,
+          output_format: task.output_format ?? undefined,
           input_image_ids: [],
           output_count: 1,
         },
@@ -981,7 +946,10 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
     && !hasBatchEditTaskOverflow
     && !hasBatchEditPromptMismatch,
   );
-  const showResolutionSelector = (selectedModel?.supported_resolutions.length ?? 0) > 1;
+  const customSizeSelected = Boolean(!isVideoTool && selectedModel?.supports_custom_size && imageSize && imageSize !== "auto");
+  const selectedAspectRatio = selectedModel?.supports_custom_size && imageSize === "auto" ? "auto" : aspectRatio;
+  const showResolutionSelector = (selectedModel?.supported_resolutions.length ?? 0) > 1
+    || (selectedModel?.supports_quality === false && Boolean(selectedModel.supported_resolutions.length));
   const ratioLabel = "比例";
   const durationLabel = "时长";
   const promptLabel = config.workType === "batch_generate"
@@ -1029,7 +997,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
       : `预计 ${quote} 积分`;
   const quoteDetail = !hasBatchOverflow && quote !== null && (isBatchTool || config.workType === "text_to_image")
     ? config.workType === "text_to_image"
-      ? `${outputCount} 张图片 x ${quote} 积分/张`
+      ? imagesPerGeneration > 1 ? `${outputCount} 组 × ${imagesPerGeneration} 张，${quote} 积分/组` : `${outputCount} 张图片 x ${quote} 积分/张`
       : config.workType === "batch_generate"
       ? batchGenerateTaskCount
         ? batchGenerateMode === "multi_output"
@@ -1047,7 +1015,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
   const promptStepNumber = config.needsUpload ? 3 : 2;
 
   return (
-    <main className="page-surface creation-tool-page">
+    <main className="page-surface creation-tool-page" data-mobile-panel={mobilePanel}>
       <header className="page-header creation-tool-page__header">
         <div>
           <h1>{config.title}</h1>
@@ -1069,6 +1037,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
         </div>
       ) : null}
 
+      <CreationMobileTabs panel={mobilePanel} onChange={setMobilePanel} resultCount={tasks.length} />
       <section className="compose-layout creation-tool-page__layout">
         <fieldset disabled={isSubmitting || isGroupLoading} className="compose-panel creation-tool-page__compose creation-tool-page__form">
           <div className="creation-tool-page__section-head">
@@ -1131,7 +1100,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
                 ) : null}
               </div>
             ) : null}
-            {!isVideoTool ? (
+            {!isVideoTool && selectedModel?.supports_quality !== false ? (
               <div
                 className="config-field model-select"
                 onBlur={(event) => {
@@ -1174,15 +1143,18 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
               className="config-field config-field--aspect"
             >
               <span>{ratioLabel}</span>
-              <div className="aspect-choice-grid" role="radiogroup" aria-label="选择比例">
+              <div className="aspect-choice-grid aspect-ratio-grid" role="radiogroup" aria-label="选择比例">
                 {selectedModel?.supported_aspect_ratios.map((option) => (
                   <button
-                    className={option.value === aspectRatio ? "aspect-choice is-active" : "aspect-choice"}
+                    className={!customSizeSelected && option.value === selectedAspectRatio ? "aspect-choice is-active" : "aspect-choice"}
                     key={option.value}
                     type="button"
                     role="radio"
-                    aria-checked={option.value === aspectRatio}
-                    onClick={() => setAspectRatio(option.value)}
+                    aria-checked={!customSizeSelected && option.value === selectedAspectRatio}
+                    onClick={() => {
+                        setAspectRatio(option.value);
+                        setImageSize("");
+                      }}
                   >
                     <span className="aspect-choice__preview">
                       {option.value === "auto" ? <Sparkles size={24} aria-hidden="true" /> : <i style={getAspectRatioStyle(option.value)} />}
@@ -1190,9 +1162,12 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
                     <strong>{option.label}</strong>
                   </button>
                 ))}
+                {!isVideoTool && selectedModel?.supports_custom_size ? <ImageCustomSizeChoice selected={customSizeSelected}
+                  onSelect={() => setImageSize(customSizeSelected ? imageSize : "1536x1024")} disabled={isSubmitting} /> : null}
               </div>
-              {selectedModel?.supported_aspect_ratios.some((option) => option.value === "auto") ? (
-                <small>按提示词决定尺寸时，请将分辨率和比例都选为“自动（Auto）”。质量“自动”不控制尺寸；Auto 不保证精确像素或印刷 DPI。</small>
+              {customSizeSelected ? <ImageCustomSizeFields size={imageSize} onSizeChange={setImageSize} disabled={isSubmitting} /> : null}
+              {!(selectedModel?.supports_custom_size && imageSize) && selectedModel?.supported_aspect_ratios.some((option) => option.value === "auto") ? (
+                <small>{selectedModel?.supports_quality === false ? "分辨率选择输出大小；比例选自动（Auto）时，按生成图片的实际比例输出。" : "按提示词决定尺寸时，请将分辨率和比例都选为“自动（Auto）”。质量“自动”不控制尺寸；Auto 不保证精确像素或印刷 DPI。"}</small>
               ) : null}
             </div>
             {isVideoTool ? (
@@ -1214,6 +1189,8 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
                 </div>
               </div>
             ) : null}
+            {!isVideoTool ? <ImageOutputSettings model={selectedModel} outputFormat={outputFormat}
+              onFormatChange={setOutputFormat} disabled={isSubmitting} /> : null}
           </div>
 
           {promptHelp ? <div className="batch-help"><Layers3 size={17} />{promptHelp}</div> : null}
@@ -1263,7 +1240,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
                       </div>
                     ) : null}
                   </div>
-                  <Button variant="secondary" type="button" isLoading={isImportingPrompts} disabled={isImportingPrompts || isSubmitting || isOptimizingPrompt} onClick={() => promptFileInputRef.current?.click()}>
+                  <Button variant="secondary" type="button" isLoading={isImportingPrompts} disabled={isImportingPrompts || isSubmitting} onClick={() => promptFileInputRef.current?.click()}>
                     <FolderPlus size={15} />
                     导入文件
                   </Button>
@@ -1273,7 +1250,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
                   type="file"
                   accept=".txt,.csv,.xlsx,.xls,text/plain,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                   hidden
-                  disabled={isImportingPrompts || isSubmitting || isOptimizingPrompt}
+                  disabled={isImportingPrompts || isSubmitting}
                   onChange={importBatchPrompts}
                 />
               </div>
@@ -1378,7 +1355,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
               </div>
             <div className="upload-source-panel">
               <label className="file-drop">
-                {isUploading || isGroupLoading ? <Loader2 className="spin-icon" size={28} /> : <UploadCloud size={28} />}
+                {isUploading || isGroupLoading ? <LoadingIndicator className="spin-icon" size={28} /> : <UploadCloud size={28} />}
                 <strong>{isGroupLoading ? "正在读取 ZIP，请稍候…" : uploadedAssets.length ? `已选择 ${uploadedAssets.length} 个素材` : config.workType === "batch_edit" ? "上传图片或 ZIP" : "上传图片素材"}</strong>
                 <span>
                   {isVideoTool
@@ -1480,7 +1457,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
                     ? config.workType === "batch_edit" && usesPerImagePrompts
                       ? "每张图片绑定一条修改指令，提交前会校验完整性"
                       : "提交前会校验图片数量和费用"
-                    : "可先用文本模型优化，再提交生成"}
+                    : "描述画面主体、风格和细节，提交后开始生成"}
                 </small>
               </div>
             </div>
@@ -1488,19 +1465,17 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
             <span>{promptLabel}</span>
             {config.workType === "text_to_image" ? (
               <div className="batch-generate-output-count" aria-label="一次生成张数">
-                <label htmlFor="text-to-image-output-count">生成张数 n</label>
-                <input
+                <label htmlFor="text-to-image-output-count">{imagesPerGeneration > 1 ? "生成组数" : "生成张数"}</label>
+                <select
                   id="text-to-image-output-count"
-                  type="number"
-                  min={1}
-                  max={MAX_STANDARD_OUTPUT_COUNT}
                   value={outputCount}
-                  onChange={(event) => {
-                    const next = Number(event.target.value);
-                    setOutputCount(Number.isFinite(next) ? Math.min(Math.max(1, Math.floor(next)), MAX_STANDARD_OUTPUT_COUNT) : 1);
-                  }}
-                />
-                <small>范围 1–{MAX_STANDARD_OUTPUT_COUNT} 张，默认 1 张。</small>
+                  onChange={(event) => setOutputCount(Number(event.target.value))}
+                >
+                  {Array.from({ length: MAX_STANDARD_OUTPUT_COUNT }, (_, index) => index + 1).map((count) => (
+                    <option key={count} value={count}>{count} {imagesPerGeneration > 1 ? "组" : "张"}</option>
+                  ))}
+                </select>
+                <small>{imagesPerGeneration > 1 ? `每组固定 ${imagesPerGeneration} 张，按组计费。默认 1 组。` : `范围 1–${MAX_STANDARD_OUTPUT_COUNT} 张，默认 1 张。`}</small>
               </div>
             ) : null}
             {usesPerImagePrompts ? (
@@ -1528,14 +1503,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
                   uploadedAssets={uploadedAssets}
                   enableMentions={config.needsUpload}
                 />}
-                <div className="prompt-tools-row">
-                  <select value={selectedTextModelId ?? ""} onChange={(event) => setSelectedTextModelId(Number(event.target.value) || null)} disabled={!textModels.length}>
-                    {textModels.length ? textModels.map((model) => <option key={model.id} value={model.id}>{model.name}</option>) : <option value="">暂无文本模型</option>}
-                  </select>
-                  <Button variant="secondary" type="button" disabled={!!importedBatch || !prompt.trim() || !selectedTextModelId || isOptimizingPrompt || isImportingPrompts} isLoading={isOptimizingPrompt} onClick={() => void optimizeCurrentPrompt()}>
-                    优化提示词
-                  </Button>
-                </div>
+
               </>
             )}
             {config.workType === "batch_generate" ? (
@@ -1560,11 +1528,13 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
           </div> : null}
 
           {groupSubmissionProgress ? <p className="batch-groups__message" role="status">{groupSubmissionProgress}</p> : null}
-          <Button className="creation-tool-page__submit" type="button" isLoading={isSubmitting} disabled={!canSubmit || isSubmitting || isImportingPrompts} onClick={submitTask}>
-            <Play size={16} />
-            {config.submitLabel}
-            {estimatedCreditCost !== null && !hasBatchOverflow ? <span>（消耗 {estimatedCreditCost} 积分）</span> : null}
-          </Button>
+          <div className="creation-submit-bar">
+            <Button className="creation-tool-page__submit" type="button" isLoading={isSubmitting} disabled={!canSubmit || isSubmitting || isImportingPrompts} onClick={submitTask}>
+              <Play size={16} />
+              {config.submitLabel}
+              {estimatedCreditCost !== null && !hasBatchOverflow ? <span>（消耗 {estimatedCreditCost} 积分）</span> : null}
+            </Button>
+          </div>
         </fieldset>
 
         <TaskResultPanel
@@ -1894,7 +1864,8 @@ const TaskResultPanel = ({
             <p>展开批次查看具体记录，在批次上下载和重试。</p>
           </div>
         </header>
-        {batchOverview}
+        <p className="batch-progress__hint">仅展示最近 7 天的创作记录，生成图片保留 7 天，请及时下载。</p>
+    {batchOverview}
       </aside>
     );
 
@@ -1912,6 +1883,7 @@ const TaskResultPanel = ({
       </button>
         ) : null}
     </header>
+    <p className="batch-progress__hint">仅展示最近 7 天的创作记录，生成图片保留 7 天，请及时下载。</p>
     {batchOverview}
     {tasks.length ? (
       <TaskResultCards
@@ -1927,15 +1899,13 @@ const TaskResultPanel = ({
           onRegenerate={onRegenerate}
           onToggleCollection={onToggleCollection}
         />
+      ) : isLoadingHistory ? (
+        <LoadingArt label="正在加载创作记录" hint="正在整理你的作品，请稍候" compact />
       ) : (
         <div className="empty-state">
           <FileImage size={34} />
           <h3>
-            {isLoadingHistory
-              ? "正在加载创作记录"
-              : historyError
-                ? "创作记录加载失败"
-                : "暂无当前类型的任务"}
+            {historyError ? "创作记录加载失败" : "暂无当前类型的任务"}
           </h3>
           <p>
             {hasMoreHistory
@@ -2014,18 +1984,57 @@ const TaskResultCards = ({
           const showTaskEditActions = showTextToImageActions && task.work_type === "text_to_image";
 
           return (
-            <article className="tool-result-card" key={task.id}>
+            <article className="tool-result-card tool-result-card--focused" data-result-state={isFailed ? "failed" : isProcessing ? "processing" : "complete"} key={task.id}>
               <div className="tool-result-card__top">
                 <div>
-                  <strong>{task.model_name || "未命名模型"}</strong>
+                  <strong>{isFailed ? "本次生成未成功" : isProcessing ? "正在生成作品" : "生成结果"}</strong>
+                  <span>{task.model_name || "未命名模型"}</span>
                   <span>{task.task_no}</span>
                   <span>耗时 {formatElapsedTime(getTaskElapsedMs(task, Math.max(now, clock)))}</span>
                 </div>
                 <span className={`status-badge status-badge--${task.status}`}>
-                  {isProcessing ? <Loader2 className="spin-icon" size={14} /> : null}
+                  {isProcessing ? <LoadingIndicator className="spin-icon" size={14} /> : null}
                   {getImageTaskStatusLabel(task, taskStatusCopy)}
                 </span>
               </div>
+
+              <div className={task.output_images.length > 1 ? "tool-result-card__preview tool-result-card__preview--multi" : "tool-result-card__preview"}>
+                {output ? task.output_images.map((asset, index) => (
+                  <button type="button" key={asset.local_url || asset.url} aria-label={`预览结果图 ${index + 1}`} onClick={() => onPreview(asset)}>
+                    {isVideoAsset(asset) ? (
+                      <video src={resolveAssetUrl(asset.url)} muted playsInline preload="metadata" />
+                    ) : (
+                      <img
+                        src={resolveAssetUrl(getAssetPreviewSource(asset))}
+                        alt="生成结果预览"
+                        loading="lazy"
+                        decoding="async"
+                        onError={(event) => {
+                          if (event.currentTarget.dataset.originalFallback === "true") return;
+                          event.currentTarget.dataset.originalFallback = "true";
+                          event.currentTarget.src = resolveAssetUrl(asset.url);
+                        }}
+                      />
+                    )}
+                  </button>
+                )) : task.output_expired_at ? (
+                  <div className="tool-result-card__state">
+                    <FileImage size={26} /><strong>图片已过期</strong>
+                    <span>生成图片保留 7 天，任务和消费记录仍可查看。</span>
+                  </div>
+                ) : isFailed ? (
+                  <div className="tool-result-card__state">
+                    <AlertTriangle size={26} />
+                    <strong>生成失败</strong>
+                    <span>{task.failure_message ?? "任务失败，未返回生成结果。"}</span>
+                  </div>
+                ) : (
+                  <div className="tool-result-card__state">
+                    <LoadingArt label={getImageTaskProcessingMessage(task)} hint="完成后，作品将在这里呈现" compact />
+                  </div>
+                )}
+              </div>
+
 
               {task.input_group_name ? (
               <div className="tool-result-card__specs" aria-label="任务组"><strong title={task.input_group_path}>{task.input_group_name}</strong>{task.input_group_path && task.input_group_path !== task.input_group_name ? (
@@ -2033,7 +2042,8 @@ const TaskResultCards = ({
                 ) : null}<span>{task.input_images.length} 张参考图</span></div>
             ) : null}
               <div className="tool-result-card__specs" aria-label="任务规格">
-                <span>{task.resolution || "默认清晰度"}</span>
+                <span>{task.size || task.resolution || "默认清晰度"}</span>
+                      {task.output_format ? <span>{task.output_format.toUpperCase()}</span> : null}
                 <span>{task.aspect_ratio || "默认比例"}</span>
                 {task.duration ? <span>{task.duration}s</span> : null}
               </div>
@@ -2059,46 +2069,12 @@ const TaskResultCards = ({
                           )
                         }
                       >
-                        {promptExpanded ? "收起" : "展开"}
+                        {promptExpanded ? "收起提示词" : "展开提示词"}
                       </button>
                     ) : null}
                   </div>
                 );
               })()}
-
-              <div className="tool-result-card__preview">
-                {output ? (
-                  <button type="button" onClick={() => onPreview(output)}>
-                    {isVideoAsset(output) ? (
-                      <video src={resolveAssetUrl(output.url)} muted playsInline preload="metadata" />
-                    ) : (
-                      <img
-                        src={resolveAssetUrl(getAssetPreviewSource(output))}
-                        alt="生成结果预览"
-                        loading="lazy"
-                        decoding="async"
-                        onError={(event) => {
-                          if (event.currentTarget.dataset.originalFallback === "true") return;
-                          event.currentTarget.dataset.originalFallback = "true";
-                          event.currentTarget.src = resolveAssetUrl(output.url);
-                        }}
-                      />
-                    )}
-                  </button>
-                ) : isFailed ? (
-                  <div className="tool-result-card__state">
-                    <FileImage size={26} />
-                    <strong>暂无结果</strong>
-                    <span>{task.failure_message ?? "任务失败，未返回生成结果。"}</span>
-                  </div>
-                ) : (
-                  <div className="tool-result-card__state">
-                    <Loader2 className="spin-icon" size={26} />
-                    <strong>{getImageTaskProcessingMessage(task)}</strong>
-                    <span>完成后会在这里显示预览。</span>
-                  </div>
-                )}
-              </div>
 
               <div className="task-actions">
                 <button
@@ -2109,7 +2085,7 @@ const TaskResultCards = ({
                   onClick={() => onToggleCollection(task)}
                 >
                   {collectingTaskIds.includes(task.id) ? (
-                  <Loader2 className="spin-icon" size={17} />
+                  <LoadingIndicator className="spin-icon" size={17} />
                 ) : (
                   <FolderPlus size={17} />
                 )}
@@ -2148,7 +2124,7 @@ const TaskResultCards = ({
                       onClick={() => onRegenerate(task)}
                     >
                       {regeneratingTaskIds.includes(task.id) ? (
-                      <Loader2 className="spin-icon" size={17} />
+                      <LoadingIndicator className="spin-icon" size={17} />
                     ) : (
                       <RotateCcw size={17} />
                     )}

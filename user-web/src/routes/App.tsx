@@ -1,7 +1,10 @@
+import { CutoutPage } from "@/pages/CutoutPage";
+import { LoadingState } from "@/components/ui/LoadingState";
 import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ProtectedRoute } from "@/routes/ProtectedRoute";
+import { RechargeRoute } from "@/routes/RechargeRoute";
 import { LoginPage } from "@/pages/LoginPage";
 import { RegisterPage } from "@/pages/RegisterPage";
 import { AdminImpersonationPage } from "@/pages/AdminImpersonationPage";
@@ -11,7 +14,6 @@ import { WorksPage } from "@/pages/WorksPage";
 import { AccountProfilePage, AccountSettingsPage } from "@/pages/AccountPages";
 import { CreditsLedgerPage } from "@/pages/CreditsLedgerPage";
 import { TeamSettingsPage } from "@/pages/TeamPage";
-import { RechargePage } from "@/pages/RechargePage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
 import {
   CreativeToolPage,
@@ -65,12 +67,13 @@ export const App = () => {
           <Route
             path="/create/imagine"
             element={
-              <Suspense fallback={<div className="list-state">正在加载创作工作台…</div>}>
+              <Suspense fallback={<LoadingState label="正在加载创作工作台…" variant="cards" />}>
                 <GrokImaginePage />
               </Suspense>
             }
           />
           <Route path="/create/canvas" element={null} />
+          <Route path="/create/cutout" element={<CutoutPage />} />
           <Route path="/create/edit" element={<WorkbenchPage />} />
           <Route path="/create/text-to-image" element={<CreativeToolPage mode="text-to-image" />} />
           <Route path="/create/text-to-video" element={<CreativeToolPage mode="text-to-video" />} />
@@ -83,7 +86,7 @@ export const App = () => {
           <Route path="/account/profile" element={<AccountProfilePage />} />
           <Route path="/account/settings" element={<AccountSettingsPage />} />
           <Route path="/credits/ledger" element={<CreditsLedgerPage />} />
-          <Route path="/billing/recharge" element={<RechargePage />} />
+          <Route path="/billing/recharge" element={<RechargeRoute />} />
           <Route path="/team" element={<TeamSettingsPage />} />
           <Route path="/product/try-on" element={<ProductToolPage mode="try-on" />} />
           <Route path="/product/multi-view" element={<ProductToolPage mode="multi-view" />} />

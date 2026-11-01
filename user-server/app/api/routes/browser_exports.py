@@ -54,14 +54,14 @@ async def export_items(batch_id: str = Query(min_length=1, max_length=64),
     if not total or total > catalog.MAX_BATCH_GENERATE_COUNT:
         raise BusinessError("批次不存在或超过单次下载上限", code=40043)
     rows = (await db.execute(select(tasks.c.id, tasks.c.task_no, tasks.c.input_group_name,
-                                   tasks.c.output_image_url, tasks.c.status, tasks.c.failure_message)
+                                   tasks.c.output_image_url, tasks.c.output_expired_at, tasks.c.status, tasks.c.failure_message)
                             .where(*filters, tasks.c.id > after_id, tasks.c.id <= max_id)
                             .order_by(tasks.c.id).limit(limit + 1))).all()
     items = []
     for row in rows[:limit]:
         folder, stem = folder_and_stem(row)
-        items.append({"id": row.id, "folder": folder, "stem": stem, "url": row.output_image_url or "",
-                      "status": row.status, "error": row.failure_message or ""})
+        items.append({"id": row.id, "folder": folder, "stem": stem, "url": "" if row.output_expired_at else (row.output_image_url or ""),
+                      "status": row.status, "error": "图片已过期" if row.output_expired_at else (row.failure_message or "")})
     return ok({"items": items, "max_id": max_id, "total": total, "has_more": len(rows) > limit,
                "next_cursor": items[-1]["id"] if items else after_id,
                "max_image_bytes": settings.image_result_download_max_bytes})

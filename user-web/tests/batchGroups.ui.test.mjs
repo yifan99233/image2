@@ -64,6 +64,7 @@ let retryRequests = [],
   retryResult = null;
 dom.window.HTMLAnchorElement.prototype.click = function () { downloadLinks.push(this.href); };
 window.showSaveFilePicker = async ({ suggestedName }) => ({ createWritable: async () => new WritableStream({ write() {}, close() { downloadLinks.push(suggestedName); } }) });
+let quoteRequests = [], useQualityPrices = false;
 let priceQuoteFixture = { credit_cost: 7 };
 let siteBatchLimit = 2000;
 let asyncUploadFixture = false, uploadedManifests = [];
@@ -80,7 +81,11 @@ globalThis.fetch = async (url, options = {}) => {
   }
   if (path.startsWith("/image-tasks/browser-export/reports/")) return new Response("xlsx fixture");
   if (path === "/models") return reply(String(url).includes("prompt_optimize") ? [] : [model]);
-  if (path === "/models/5/quote") return reply(priceQuoteFixture);
+  if (path === "/models/5/quote") {
+    const payload = JSON.parse(options.body);
+    quoteRequests.push(payload);
+    return reply(useQualityPrices ? {credit_cost: {low: 3, medium: 5, high: 6, auto: 5}[payload.quality]} : priceQuoteFixture);
+  }
   if (path === "/ux/config") return reply({ max_batch_tasks: siteBatchLimit });
   if (path === "/image-tasks/batches") {
     batchListRequests.push(String(url));
@@ -1122,4 +1127,53 @@ test("VIP quote shows fixed surcharge separately and exact fractional batch tota
     assert.match(badge, /VIP1：基础 1 × 0.8 \+ 固定 2 = 2.8 积分/);
     assert.doesNotMatch(badge, /8.399999/);
   } finally { await unmount(); priceQuoteFixture = { credit_cost: 7 }; }
+});
+
+
+test("changing quality requotes displayed credits and submits the same quality", async () => {
+  useQualityPrices = true; quoteRequests = [];
+  await mount(false, 20000, "batch-generate");
+  try {
+    await setValue(document.querySelector("textarea.prompt-mention-editor--plain"), "first\nsecond");
+    for (const [quality, label, cost] of [["low", "低", 3], ["high", "高", 6], ["medium", "中", 5]]) {
+      const field = [...document.querySelectorAll(".config-field")].find(el => el.firstElementChild?.textContent === "质量");
+      await click(field.querySelector("button"));
+      await click([...byLabel("选择生成质量").querySelectorAll("button")].find(el => el.textContent === label));
+      assert.equal(quoteRequests.at(-1).quality, quality);
+      assert.match(document.querySelector(".tool-cost").textContent, new RegExp(`预计 ${cost * 2} 积分`));
+    }
+    await click(button("提交批量任务"));
+    assert.equal(posts.at(-1).quality, "medium");
+  } finally { await unmount(); useQualityPrices = false; }
+});
+
+test("custom batch dimensions and WebP survive file submission; invalid sizes cannot submit", async () => {
+  model.supports_custom_size = true;
+  model.supports_output_format = true;
+  await mount(false, 20000, "batch-generate");
+  try {
+    await click(button("自定义"));
+    const fields = document.querySelectorAll(".image-custom-size input");
+    await setValue(fields[0], "2048");
+    await setValue(fields[1], "3072");
+    await click(button("WebP"));
+    await setValue(document.querySelector("textarea.prompt-mention-editor--plain"), "first prompt\nsecond prompt");
+    await setValue(fields[0], "2049");
+    await click(button("提交批量任务"));
+    assert.equal(posts.length, 0);
+    assert.match(document.body.textContent, /16 的正整数倍/);
+    await setValue(fields[0], "2048");
+    await click(button("提交批量任务"));
+    assert.equal(uploadedManifests.length, 1);
+    assert.equal(uploadedManifests[0].size, "2048x3072");
+    assert.equal(uploadedManifests[0].output_format, "webp");
+    assert.deepEqual(uploadedManifests[0].prompts, ["first prompt", "second prompt"]);
+    const preference = JSON.parse(window.localStorage.getItem("image2ai.toolPreference.batch_generate"));
+    assert.equal(preference.imageSize, "2048x3072");
+    assert.equal(preference.outputFormat, "webp");
+  } finally {
+    await unmount();
+    delete model.supports_custom_size;
+    delete model.supports_output_format;
+  }
 });

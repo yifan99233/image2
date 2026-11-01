@@ -1,3 +1,15 @@
+.workbench-history {
+  display: grid;
+  gap: 10px;
+}
+
+.workbench-history__summary {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin: 0;
+  text-align: center;
+}
+
 .config-row .model-select:not(.config-field--model) .model-select__option {
   min-height: 42px;
 }

@@ -7,6 +7,8 @@ const dom = new JSDOM('<div id="root"></div>', {url:'http://test/works'});
 for (const key of ['window','document','HTMLElement','HTMLInputElement','Event','CustomEvent']) globalThis[key]=dom.window[key];
 Object.defineProperty(globalThis,'navigator',{value:dom.window.navigator,configurable:true});
 globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+// JSDOM has no layout observer; the prompt measures once on mount.
+globalThis.ResizeObserver=class { observe() {} disconnect() {} };
 const {createRoot}=await import('react-dom/client');
 await build({entryPoints:['src/pages/WorksPage.tsx'],outfile:'node_modules/.tmp/works-review.mjs',bundle:true,format:'esm',platform:'node',packages:'external',alias:{'@':process.cwd()+'/src'},define:{'import.meta.env':'{"VITE_API_BASE_URL":"http://test"}'},jsx:'automatic'});
 const {WorksPage}=await import('../node_modules/.tmp/works-review.mjs');

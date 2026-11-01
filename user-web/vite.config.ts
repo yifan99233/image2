@@ -18,6 +18,11 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: env.VITE_PROXY_API_TARGET
         ? {
+            "/image2-assets": {
+              target: new URL(env.VITE_PROXY_API_TARGET).origin,
+              changeOrigin: true,
+              secure: true,
+            },
             "/api": {
               target: env.VITE_PROXY_API_TARGET,
               changeOrigin: true,

@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     allow_plaintext_password: bool = Field(default=True, validation_alias=AliasChoices("ALLOW_PLAINTEXT_PASSWORD", "USER_ALLOW_PLAINTEXT_PASSWORD"))
     login_rate_limit_max_attempts: int = 5
     login_rate_limit_window_seconds: int = 60
+    image_retention_enabled: bool = False
+    image_retention_batch_size: int = Field(default=500, ge=1, le=500)
+    image_retention_interval_seconds: int = Field(default=60, ge=10)
     upload_max_bytes: int = 10 * 1024 * 1024
     batch_upload_max_bytes: int = Field(default=64 * 1024 * 1024, ge=1024, le=128 * 1024 * 1024)
     batch_upload_max_prompt_chars: int = Field(default=100_000, ge=1, le=1_000_000)
@@ -60,6 +63,7 @@ class Settings(BaseSettings):
     minio_secure: bool = False
     minio_public_read: bool = True
     upload_storage_provider: str = Field(default="minio", validation_alias=AliasChoices("UPLOAD_STORAGE_PROVIDER", "USER_UPLOAD_STORAGE_PROVIDER"))
+    model_cdn_config_json: str = Field(default="", repr=False)
     image_storage_target: str = Field(default="", validation_alias=AliasChoices("IMAGE_STORAGE_TARGET", "USER_IMAGE_STORAGE_TARGET"))
     image_storage_targets_json: str = Field(default="", validation_alias=AliasChoices("IMAGE_STORAGE_TARGETS_JSON", "USER_IMAGE_STORAGE_TARGETS_JSON"))
     qiniu_access_key: str = Field(default="", validation_alias=AliasChoices("USER_QINIU_ACCESS_KEY", "QINIU_ACCESS_KEY"))

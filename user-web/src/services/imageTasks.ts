@@ -4,12 +4,13 @@ import { appConfig } from "@/config/env";
 import type { CreateImageTaskRequest, ImageAsset, ImageTask, ImageBatchPage, ImageBatchSummary, ImageBatchSubmission, ImageBatchRetryQuote } from "@/types/api";
 
 export const imageTaskService = {
-  async getTasks(options?: { limit?: number; beforeId?: number; batchId?: string; status?: ImageTask["status"]; signal?: AbortSignal }): Promise<ImageTask[]> {
+  async getTasks(options?: { limit?: number; beforeId?: number; batchId?: string; status?: ImageTask["status"]; workTypes?: string[]; signal?: AbortSignal }): Promise<ImageTask[]> {
     const params = new URLSearchParams();
     if (options?.limit) params.set("limit", String(options.limit));
     if (options?.beforeId) params.set("before_id", String(options.beforeId));
     if (options?.batchId) params.set("batch_id", options.batchId);
     if (options?.status) params.set("status", options.status);
+    options?.workTypes?.forEach((workType) => params.append("work_types", workType));
     const query = params.size ? `?${params.toString()}` : "";
     return request<ImageTask[]>(`/image-tasks${query}`, { signal: options?.signal });
   },
@@ -42,7 +43,7 @@ export const imageTaskService = {
       const manifest = {
         version: 1, work_type: "batch_generate", batch_id: payload.batch_id ?? `batch-${crypto.randomUUID()}`,
         model_id: payload.model_id, resolution: payload.resolution, aspect_ratio: payload.aspect_ratio,
-        quality: payload.quality ?? "auto", prompts, folder_names: payload.folder_names,
+        quality: payload.quality ?? "auto", size: payload.size, output_format: payload.output_format, prompts, folder_names: payload.folder_names,
       };
       const file = new Blob([JSON.stringify(manifest)], { type: "application/json" });
       if (file.size > (limits?.maxBytes ?? defaultUserExperienceConfig.batch_upload_max_bytes!)) {

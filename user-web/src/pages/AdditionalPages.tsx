@@ -1,3 +1,4 @@
+import { LoadingState } from "@/components/ui/LoadingState";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   Check,
@@ -7,7 +8,6 @@ import {
   Gift,
   Headphones,
   Link as LinkIcon,
-  Loader2,
   LockKeyhole,
   MessageCircle,
   MessageSquareText,
@@ -270,7 +270,7 @@ export const LeadModulePage = () => {
 
         {error ? <div className="list-state list-state--error">{error}</div> : null}
         {notice ? <div className="inline-result"><CheckCircle2 size={17} />{notice}</div> : null}
-        {!status && !error ? <div className="list-state">正在读取客资模块开通状态...</div> : null}
+        {!status && !error ? <LoadingState label="正在读取客资模块开通状态" /> : null}
 
         {visibleLeadCases.length ? <section className="lead-video-section" aria-label="行业视频案例">
           <div className="dash-section__head">
@@ -479,13 +479,7 @@ export const SigninPage = () => {
   if (!status) {
     return (
       <main className="page-surface">
-        <section className="utility-shell">
-          <div className="utility-icon"><Loader2 className="spin-icon" size={30} /></div>
-          <div>
-            <h1>签到领积分</h1>
-            <p>正在读取后台签到配置。</p>
-          </div>
-        </section>
+        <LoadingState label="正在加载签到信息" variant="cards" />
       </main>
     );
   }
@@ -628,13 +622,7 @@ export const InvitePage = () => {
   if (!config) {
     return (
       <main className="page-surface">
-        <section className="utility-shell">
-          <div className="utility-icon"><Loader2 className="spin-icon" size={30} /></div>
-          <div>
-            <h1>邀请赚积分</h1>
-            <p>正在读取后台邀请奖励配置。</p>
-          </div>
-        </section>
+        <LoadingState label="正在加载邀请奖励" variant="cards" />
       </main>
     );
   }

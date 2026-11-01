@@ -4,13 +4,6 @@ export type DownloadTarget = {
   fallbackUrl?: string;
 };
 
-type DownloadResponse = {
-  ok: boolean;
-  blob: () => Promise<Blob>;
-};
-
-type DownloadFetcher = (url: string) => Promise<DownloadResponse>;
-
 export const planDownloadTarget = (
   resolvedUrl: string,
   pageHref: string,
@@ -22,7 +15,7 @@ export const planDownloadTarget = (
   const normalizedUrl = isLegacyMagicAsset && parsedUrl.origin !== pageOrigin
     ? `${pageOrigin}${parsedUrl.pathname}${parsedUrl.search}`
     : parsedUrl.toString();
-  const canDownloadDirectly = new URL(normalizedUrl, pageHref).origin === pageOrigin;
+  const canDownloadDirectly = ["blob:", "data:"].includes(parsedUrl.protocol) || new URL(normalizedUrl, pageHref).origin === pageOrigin;
 
   return {
     url: normalizedUrl,
@@ -33,13 +26,29 @@ export const planDownloadTarget = (
   };
 };
 
+// Canvas composition needs readable image bytes; user downloads stay streamed.
+type DownloadResponse = {
+  ok: boolean;
+  blob: () => Promise<Blob>;
+};
+
+type DownloadFetcher = (url: string, options?: RequestInit) => Promise<DownloadResponse>;
+
+// Preview <img> responses may be cached without CORS headers. A download must
+// make a fresh CORS request instead of reusing that opaque preview response.
+const CDN_DOWNLOAD_OPTIONS = {
+  mode: "cors",
+  credentials: "omit",
+  cache: "no-store",
+} as const;
+
 export const fetchDownloadBlob = async (
   target: DownloadTarget,
   fetcher: DownloadFetcher = fetch,
 ): Promise<Blob> => {
   try {
-    const response = await fetcher(target.url);
-    if (response.ok) return response.blob();
+    const response = await fetcher(target.url, CDN_DOWNLOAD_OPTIONS);
+    if (response.ok) return await response.blob();
   } catch {
     // A legacy asset host may not allow cross-origin reads. Fall back to the
     // current site's shared MinIO proxy when the object path is compatible.
@@ -47,8 +56,8 @@ export const fetchDownloadBlob = async (
 
   if (target.fallbackUrl) {
     try {
-      const fallbackResponse = await fetcher(target.fallbackUrl);
-      if (fallbackResponse.ok) return fallbackResponse.blob();
+      const fallbackResponse = await fetcher(target.fallbackUrl, CDN_DOWNLOAD_OPTIONS);
+      if (fallbackResponse.ok) return await fallbackResponse.blob();
     } catch {
       // Use the same user-facing failure for network and HTTP errors.
     }

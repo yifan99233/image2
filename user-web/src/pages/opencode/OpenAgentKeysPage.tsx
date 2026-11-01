@@ -137,7 +137,7 @@ function KeyEditor({
       <header><span><KeyRound size={18} /></span><div><h2 id="key-dialog-title">{keyItem ? "编辑 Key" : "创建 Key"}</h2><p>选择当前站点可用分组，并配置这把 Key 的使用边界。</p></div></header>
       <div className="opencode-key-form-grid">
         <label>Key 名称<input value={form.name} maxLength={120} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} autoFocus /></label>
-        <label>分组<select value={form.groupId} onChange={(event) => setForm((current) => ({ ...current, groupId: event.target.value }))}>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
+        <label>分组<select value={form.groupId} onChange={(event) => setForm((current) => ({ ...current, groupId: event.target.value }))}>{keyItem?.group && !groups.some((group) => group.id === keyItem.group?.id) ? <option value={keyItem.group.id}>{keyItem.group.name}（当前分组，不可新建）</option> : null}{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
         <label>总额度<input type="number" min="0" step="0.0001" value={form.quota} onChange={(event) => setForm((current) => ({ ...current, quota: event.target.value }))} /><small>0 表示不限额</small></label>
         {keyItem ? <label>状态<select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as "active" | "inactive" }))}><option value="active">正常</option><option value="inactive">停用</option></select></label> : null}
       </div>

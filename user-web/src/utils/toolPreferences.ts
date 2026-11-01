@@ -1,5 +1,5 @@
 import { DEFAULT_IMAGE_QUALITY, IMAGE_QUALITY_OPTIONS } from "@/constants/imageGeneration";
-import type { ImageModel, ImageQuality } from "@/types/api";
+import type { ImageModel, ImageQuality, ImageOutputFormat } from "@/types/api";
 
 type ToolPreference = {
   modelId: number | null;
@@ -7,6 +7,8 @@ type ToolPreference = {
   aspectRatio: string;
   duration: string;
   quality: ImageQuality;
+  imageSize?: string;
+  outputFormat?: ImageOutputFormat | "";
 };
 
 const preferenceKey = (scope: string) => `image2ai.toolPreference.${scope}`;
@@ -33,6 +35,8 @@ export const readToolPreference = (scope: string): ToolPreference => {
       aspectRatio: typeof parsed.aspectRatio === "string" ? parsed.aspectRatio : "",
       duration: typeof parsed.duration === "string" ? parsed.duration : "",
       quality: isImageQuality(parsed.quality) ? parsed.quality : DEFAULT_IMAGE_QUALITY,
+      imageSize: typeof parsed.imageSize === "string" ? parsed.imageSize : "",
+      outputFormat: ["png", "jpeg", "webp"].includes(parsed.outputFormat ?? "") ? parsed.outputFormat : "",
     };
   } catch {
     return defaultPreference;
@@ -48,6 +52,8 @@ export const writeToolPreference = (scope: string, preference: ToolPreference) =
       aspectRatio: preference.aspectRatio,
       duration: preference.duration ?? "",
       quality: preference.quality,
+      imageSize: preference.imageSize,
+      outputFormat: preference.outputFormat,
     }),
   );
 };
@@ -73,5 +79,7 @@ export const resolveToolPreference = (models: ImageModel[], preference: ToolPref
     aspectRatio,
     duration,
     quality: preference.quality,
+    imageSize: preference.imageSize ?? "",
+    outputFormat: preference.outputFormat ?? "",
   };
 };

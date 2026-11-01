@@ -24,6 +24,7 @@ test("direct CDN export pages metadata, writes ZIP64, and reports generation/dow
     urls.push(url);
     assert.equal(options.credentials, "omit");
     assert.equal(options.mode, "cors");
+    assert.equal(options.cache, "no-store");
     assert.equal(options.headers, undefined);
     return url.endsWith("2.png") ? new Response("missing", { status: 404 }) : new Response(png);
   });

@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type CompositionEvent, type CSSProperties, type ChangeEvent, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
+import { ImageOutputSettings, ImageCustomSizeChoice, ImageCustomSizeFields } from "@/components/images/ImageOutputSettings";
+import { imageOutputOptions } from "@/utils/imageOutputOptions";
+import { LoadingArt } from "@/components/ui/LoadingArt";
+import { LoadingIndicator } from "@/components/ui/LoadingIndicator";
+import { Wand2 } from "@/components/ui/StudioIcons";
+import { CreationMobileTabs } from "@/components/layout/CreationMobileTabs";
+import { useCreationPanel } from "@/hooks/useCreationPanel";
+import { useCallback, useEffect, useMemo, useRef, useState, type CompositionEvent, type CSSProperties, type ChangeEvent, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
@@ -10,7 +17,6 @@ import {
   FolderPlus,
   ImageOff,
   ImagePlus,
-  Loader2,
   RotateCcw,
   Trash2,
   UploadCloud,
@@ -24,10 +30,9 @@ import { AssetPreviewImage } from "@/components/images/AssetPreviewImage";
 import { DEFAULT_IMAGE_QUALITY, IMAGE_QUALITY_OPTIONS } from "@/constants/imageGeneration";
 import { imageTaskService } from "@/services/imageTasks";
 import { modelService } from "@/services/models";
-import { promptService } from "@/services/prompt";
 import { uploadService } from "@/services/uploads";
 import { workService } from "@/services/works";
-import type { ImageAsset, ImageModel, ImageQuality, ImageTask } from "@/types/api";
+import type { ImageAsset, ImageModel, ImageQuality, ImageOutputFormat, ImageTask } from "@/types/api";
 import { resolveAssetUrl } from "@/utils/assets";
 import { notifyCreditBalanceChanged } from "@/utils/creditEvents";
 import { downloadImage, startBrowserDownload } from "@/utils/download";
@@ -43,6 +48,8 @@ const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const ACCEPTED_IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
 const WORKBENCH_PREFERENCE_SCOPE = "image_edit";
 const MAX_OUTPUT_COUNT = 9;
+const TASK_HISTORY_PAGE_SIZE = 40;
+const EDIT_TASK_WORK_TYPES = ["image_edit", "image_to_image", "batch_edit"];
 type MentionMenuState = {
   query: string;
   start: number;
@@ -117,7 +124,7 @@ const formatTaskTime = (value: string) => {
   }).format(date);
 };
 
-const isEditTask = (task: ImageTask) => ["image_edit", "image_to_image", "batch_edit"].includes(task.work_type);
+const isEditTask = (task: ImageTask) => EDIT_TASK_WORK_TYPES.includes(task.work_type);
 
 const PROMPT_COLLAPSE_CHARS = 72;
 
@@ -127,6 +134,7 @@ const isPromptCollapsible = (prompt?: string | null) => {
 };
 
 export const WorkbenchPage = () => {
+  const [mobilePanel, setMobilePanel] = useCreationPanel();
   const location = useLocation();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -134,10 +142,9 @@ export const WorkbenchPage = () => {
   const promptStepRef = useRef<HTMLElement>(null);
   const pollingRef = useRef<ReturnType<typeof createImageTaskPoller<ImageTask>> | null>(null);
   const submitInFlightRef = useRef(false);
+  const historyRequestRef = useRef<AbortController | null>(null);
   const [models, setModels] = useState<ImageModel[]>([]);
-  const [textModels, setTextModels] = useState<ImageModel[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
-  const [selectedTextModelId, setSelectedTextModelId] = useState<number | null>(null);
   const [openConfigMenu, setOpenConfigMenu] = useState<"resolution" | "quality" | "aspect" | null>(null);
   const [uploadedAssets, setUploadedAssets] = useState<ImageAsset[]>([]);
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
@@ -150,13 +157,18 @@ export const WorkbenchPage = () => {
   const [resolution, setResolution] = useState("");
   const [aspectRatio, setAspectRatio] = useState("");
   const [quality, setQuality] = useState<ImageQuality>(DEFAULT_IMAGE_QUALITY);
+  const [imageSize, setImageSize] = useState("");
+  const [outputFormat, setOutputFormat] = useState<ImageOutputFormat | "">("");
   const [outputCount, setOutputCount] = useState(1);
   const [quote, setQuote] = useState<number | null>(null);
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
   const [tasks, setTasks] = useState<ImageTask[]>([]);
+  const [historyCursor, setHistoryCursor] = useState<number | undefined>();
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
   const [isMaterialPickerOpen, setIsMaterialPickerOpen] = useState(false);
   const [confirmDeleteTaskId, setConfirmDeleteTaskId] = useState<number | null>(null);
   const [previewAsset, setPreviewAsset] = useState<ImageAsset | null>(null);
@@ -192,7 +204,10 @@ export const WorkbenchPage = () => {
     () => models.find((model) => model.id === selectedModelId) ?? null,
     [models, selectedModelId],
   );
-  const showResolutionSelector = (selectedModel?.supported_resolutions.length ?? 0) > 1;
+  const customSizeSelected = Boolean(selectedModel?.supports_custom_size && imageSize && imageSize !== "auto");
+  const selectedAspectRatio = selectedModel?.supports_custom_size && imageSize === "auto" ? "auto" : aspectRatio;
+  const showResolutionSelector = (selectedModel?.supported_resolutions.length ?? 0) > 1
+    || (selectedModel?.supports_quality === false && Boolean(selectedModel.supported_resolutions.length));
   const maxOutputCount = MAX_OUTPUT_COUNT;
 
   useEffect(() => {
@@ -209,6 +224,7 @@ export const WorkbenchPage = () => {
     const sourceAssets = readImageEditAssets(location.state);
     if (!sourceAssets.length) return;
     const sourcePrompt = readImageEditPrompt(location.state);
+    setMobilePanel("form");
     setUploadedAssets(sourceAssets);
     setPendingUploads((current) => {
       current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
@@ -228,7 +244,7 @@ export const WorkbenchPage = () => {
       promptStepRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       promptInputRef.current?.focus();
     }, 0);
-  }, [location.pathname, location.state, navigate]);
+  }, [location.pathname, location.state, navigate, setMobilePanel]);
 
   useEffect(() => {
     if (!uploadError) return;
@@ -260,14 +276,11 @@ export const WorkbenchPage = () => {
       setResolution(preference.resolution);
       setAspectRatio(preference.aspectRatio);
       setQuality(preference.quality);
+      setImageSize(preference.imageSize ?? "");
+      setOutputFormat(preference.outputFormat ?? "");
     };
 
     void loadModels();
-    modelService.getModels("prompt_optimize").then((items) => {
-      if (ignore) return;
-      setTextModels(items);
-      setSelectedTextModelId(items[0]?.id ?? null);
-    }).catch(() => undefined);
 
     return () => {
       ignore = true;
@@ -276,34 +289,51 @@ export const WorkbenchPage = () => {
 
   useEffect(() => {
     if (!selectedModelId || !resolution || !aspectRatio) return;
-    writeToolPreference(WORKBENCH_PREFERENCE_SCOPE, { modelId: selectedModelId, resolution, aspectRatio, duration: "", quality });
-  }, [selectedModelId, resolution, aspectRatio, quality]);
+    writeToolPreference(WORKBENCH_PREFERENCE_SCOPE, { modelId: selectedModelId, resolution, aspectRatio, duration: "", quality, imageSize, outputFormat });
+  }, [selectedModelId, resolution, aspectRatio, quality, imageSize, outputFormat]);
+
+  const loadHistoryPage = useCallback(async (beforeId?: number) => {
+    if (historyRequestRef.current) return;
+    const controller = new AbortController();
+    historyRequestRef.current = controller;
+    setIsLoadingHistory(true);
+    setHistoryError(null);
+    try {
+      const items = await imageTaskService.getTasks({
+        limit: TASK_HISTORY_PAGE_SIZE,
+        beforeId,
+        workTypes: EDIT_TASK_WORK_TYPES,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      const editTasks = items.filter(isEditTask);
+      setTasks((current) => {
+        const knownIds = new Set(current.map((task) => task.id));
+        return [...current, ...editTasks.filter((task) => !knownIds.has(task.id))];
+      });
+      // Keep the server cursor independent of newly submitted or deleted cards.
+      if (items.length) setHistoryCursor(Math.min(...items.map((task) => task.id)));
+      setHasMoreHistory(items.length === TASK_HISTORY_PAGE_SIZE);
+      pollingRef.current?.watch(editTasks
+        .filter((task) => ["pending", "queued", "running"].includes(task.status))
+        .map((task) => task.id));
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setHistoryError(error instanceof Error ? error.message : "任务记录加载失败，请重试。");
+      }
+    } finally {
+      if (!controller.signal.aborted) setIsLoadingHistory(false);
+      if (historyRequestRef.current === controller) historyRequestRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
-    let ignore = false;
-
-    imageTaskService
-      .getTasks()
-      .then((items) => {
-        if (ignore) return;
-        const editTasks = items.filter(isEditTask);
-        setTasks((current) => {
-          const knownIds = new Set(current.map((task) => task.id));
-          return [...current, ...editTasks.filter((task) => !knownIds.has(task.id))];
-        });
-        const activeTaskIds = editTasks
-          .filter((task) => ["pending", "queued", "running"].includes(task.status))
-          .map((task) => task.id);
-        if (activeTaskIds.length) pollTasks(activeTaskIds);
-      })
-      .catch((error) => {
-        if (!ignore) setSubmitError(error instanceof Error ? error.message : "任务记录加载失败");
-      });
-
+    void loadHistoryPage();
     return () => {
-      ignore = true;
+      historyRequestRef.current?.abort();
+      historyRequestRef.current = null;
     };
-  }, []);
+  }, [loadHistoryPage]);
 
   useEffect(() => {
     if (!selectedModel || !resolution || !aspectRatio) return;
@@ -311,7 +341,7 @@ export const WorkbenchPage = () => {
     setIsQuoteLoading(true);
 
     modelService
-      .quote(selectedModel.id, "image_edit", resolution, aspectRatio, 1)
+      .quote(selectedModel.id, "image_edit", resolution, aspectRatio, 1, undefined, selectedModel.supports_quality === false ? "auto" : quality)
       .then((nextQuote) => {
         if (!ignore) setQuote(nextQuote.credit_cost);
       })
@@ -325,7 +355,7 @@ export const WorkbenchPage = () => {
     return () => {
       ignore = true;
     };
-  }, [selectedModel, resolution, aspectRatio]);
+  }, [selectedModel, resolution, aspectRatio, quality]);
 
   useEffect(() => {
     setOutputCount((current) => Math.min(Math.max(1, current), maxOutputCount));
@@ -455,21 +485,6 @@ export const WorkbenchPage = () => {
     [pendingUploads, uploadedAssets],
   );
 
-  const optimizeCurrentPrompt = async () => {
-    if (!selectedTextModelId || !prompt.trim()) return;
-    setIsOptimizingPrompt(true);
-    setSubmitError(null);
-    try {
-      const result = await promptService.optimize(selectedTextModelId, prompt);
-      setPrompt(result.prompt);
-      setNotice("提示词已优化");
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "提示词优化失败");
-    } finally {
-      setIsOptimizingPrompt(false);
-    }
-  };
-
   function pollTask(taskId: number) {
     pollTasks([taskId]);
   }
@@ -494,6 +509,7 @@ export const WorkbenchPage = () => {
     setIsSubmitting(true);
     setSubmitError(null);
     try {
+      const outputOptions = imageOutputOptions(selectedModel, imageSize, outputFormat);
       let inputAssets = uploadedAssets;
       if (pendingUploads.length) {
         setIsUploading(true);
@@ -512,7 +528,8 @@ export const WorkbenchPage = () => {
         prompt: prompt.trim(),
         resolution,
         aspect_ratio: aspectRatio,
-        quality,
+        quality: selectedModel.supports_quality === false ? undefined : quality,
+        ...outputOptions,
         input_image_ids: inputAssets.map((asset) => asset.id),
         output_count: 1,
         n: outputCount,
@@ -524,6 +541,7 @@ export const WorkbenchPage = () => {
         )
         : [await imageTaskService.createTask(singleOutputPayload, inputAssets)];
       setTasks((current) => [...createdTasks.reverse(), ...current]);
+      setMobilePanel("results");
       pollTasks(createdTasks.map((task) => task.id));
       clearReferenceUploads();
       notifyCreditBalanceChanged();
@@ -541,15 +559,18 @@ export const WorkbenchPage = () => {
     const output = task.output_images[0];
     if (!output) return;
     const editAssets = mergeImageEditAssets(output, task.input_images);
+    setMobilePanel("form");
     setUploadedAssets(editAssets);
     setPreviewUrls({});
     setPrompt(nextPrompt);
     setQuality(task.quality ?? DEFAULT_IMAGE_QUALITY);
+    setImageSize(task.size ?? "");
+    setOutputFormat(task.output_format ?? "");
     setSubmitError(null);
     const sourceSummary = editAssets.length > 1
       ? `结果图和 ${editAssets.length - 1} 张原始参考图`
       : "结果图";
-    setNotice(`已把${sourceSummary}及原提示词放入左侧编辑区，可直接修改后重新生成`);
+    setNotice(`已把${sourceSummary}及原提示词放入创作设置，可直接修改后重新生成`);
     window.setTimeout(() => {
       promptStepRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       promptInputRef.current?.focus();
@@ -575,6 +596,8 @@ export const WorkbenchPage = () => {
           resolution: task.resolution,
           aspect_ratio: task.aspect_ratio,
           quality: task.quality ?? DEFAULT_IMAGE_QUALITY,
+          size: task.size ?? undefined,
+          output_format: task.output_format ?? undefined,
           input_image_ids: task.input_images.map((asset) => asset.id),
           output_count: 1,
         },
@@ -624,7 +647,11 @@ export const WorkbenchPage = () => {
     const output = task.output_images[0];
     if (!output) return;
     try {
-      await downloadImage(output.url, `image2ai-${task.task_no}`, output.mime_type);
+      if (task.output_images.length > 1) {
+        startBrowserDownload(await imageTaskService.createExportDownloadUrl([task.id]));
+      } else {
+        await downloadImage(output.url, `image2ai-${task.task_no}`, output.mime_type);
+      }
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "图片下载失败，请稍后重试");
     }
@@ -668,15 +695,16 @@ export const WorkbenchPage = () => {
   };
 
   return (
-    <main className="workspace creation-tool-page creation-tool-page--edit">
+    <main className="workspace creation-tool-page creation-tool-page--edit" data-mobile-panel={mobilePanel}>
+      <CreationMobileTabs panel={mobilePanel} onChange={setMobilePanel} resultCount={tasks.length} />
       <section className="workspace__form" aria-labelledby="workspace-title">
         <div className="tool-title creation-tool-page__header">
           <span>
-            <Edit3 size={22} />
+            <Wand2 size={24} />
           </span>
           <div>
             <h1 id="workspace-title">图生图</h1>
-            <p>选择模型、上传图片并输入修改指令，提交后在右侧查看进度和结果。</p>
+            <p>选择模型、上传图片并输入修改指令，提交后查看生成进度和结果。</p>
           </div>
         </div>
 
@@ -686,7 +714,7 @@ export const WorkbenchPage = () => {
               <span>1</span>
               <strong>生成配置</strong>
             </header>
-            <div className={showResolutionSelector ? "config-row" : "config-row config-row--without-resolution"}>
+            <div className={showResolutionSelector ? (selectedModel?.supports_quality === false ? "config-row config-row--without-quality" : "config-row") : "config-row config-row--without-resolution"}>
               <div className="config-field config-field--model model-select">
                 <span>模型</span>
                 <ModelPicker
@@ -738,6 +766,7 @@ export const WorkbenchPage = () => {
                   ) : null}
                 </div>
               ) : null}
+              {selectedModel?.supports_quality !== false ? (
               <div
                 className="config-field model-select"
                 onBlur={(event) => {
@@ -775,17 +804,21 @@ export const WorkbenchPage = () => {
                   </div>
                 ) : null}
               </div>
+              ) : null}
               <div className="config-field config-field--aspect">
-                <span>尺寸</span>
-                <div className="aspect-choice-grid" role="radiogroup" aria-label="选择尺寸比例">
+                <span>比例</span>
+                <div className="aspect-choice-grid aspect-ratio-grid" role="radiogroup" aria-label="选择尺寸比例">
                   {selectedModel?.supported_aspect_ratios.map((option) => (
                     <button
-                      className={option.value === aspectRatio ? "aspect-choice is-active" : "aspect-choice"}
+                      className={!customSizeSelected && option.value === selectedAspectRatio ? "aspect-choice is-active" : "aspect-choice"}
                       key={option.value}
                       type="button"
                       role="radio"
-                      aria-checked={option.value === aspectRatio}
-                      onClick={() => setAspectRatio(option.value)}
+                      aria-checked={!customSizeSelected && option.value === selectedAspectRatio}
+                      onClick={() => {
+                        setAspectRatio(option.value);
+                        setImageSize("");
+                      }}
                     >
                       <span className="aspect-choice__preview">
                         <i style={getAspectRatioStyle(option.value)} />
@@ -793,8 +826,13 @@ export const WorkbenchPage = () => {
                       <strong>{option.label}</strong>
                     </button>
                   ))}
+                  {selectedModel?.supports_custom_size ? <ImageCustomSizeChoice selected={customSizeSelected}
+                    onSelect={() => setImageSize(customSizeSelected ? imageSize : "1536x1024")} disabled={isSubmitting} /> : null}
                 </div>
+                {customSizeSelected ? <ImageCustomSizeFields size={imageSize} onSizeChange={setImageSize} disabled={isSubmitting} /> : null}
               </div>
+              <ImageOutputSettings model={selectedModel} outputFormat={outputFormat}
+                onFormatChange={setOutputFormat} disabled={isSubmitting} />
             </div>
             {selectedModel?.speed_hint ? <p className="speed-hint">{selectedModel.speed_hint}</p> : null}
           </section>
@@ -821,9 +859,9 @@ export const WorkbenchPage = () => {
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={handleDrop}
               >
-                <span>{isUploading ? <Loader2 className="spin-icon" size={25} /> : <UploadCloud size={25} />}</span>
-                <strong>{isUploading ? "正在上传图片" : "点击或拖拽图片上传"}</strong>
-                <small>仅支持 JPG、PNG、WEBP，单张不超过 10MB，点击生成时按当前模型线路上传</small>
+                <span>{isUploading ? <LoadingIndicator className="spin-icon" size={25} /> : <UploadCloud size={25} />}</span>
+                <strong>{isUploading ? "正在上传图片" : "选择图片"}</strong>
+                <small>支持 JPG、PNG、WEBP，单张不超过 10MB</small>
               </button>
               <Button variant="secondary" type="button" onClick={() => setIsMaterialPickerOpen(true)}>
                 <ImagePlus size={16} />
@@ -855,18 +893,16 @@ export const WorkbenchPage = () => {
               <strong>文字描述</strong>
             </header>
             <div className="batch-generate-output-count" aria-label="图生图生成张数">
-              <label htmlFor="image-edit-output-count">生成张数 n</label>
-              <input
+              <label htmlFor="image-edit-output-count">生成张数</label>
+              <select
                 id="image-edit-output-count"
-                type="number"
-                min={1}
-                max={MAX_OUTPUT_COUNT}
                 value={outputCount}
-                onChange={(event) => {
-                  const next = Number(event.target.value);
-                  setOutputCount(Number.isFinite(next) ? Math.min(Math.max(1, Math.floor(next)), MAX_OUTPUT_COUNT) : 1);
-                }}
-              />
+                onChange={(event) => setOutputCount(Number(event.target.value))}
+              >
+                {Array.from({ length: MAX_OUTPUT_COUNT }, (_, index) => index + 1).map((count) => (
+                  <option key={count} value={count}>{count} 张</option>
+                ))}
+              </select>
               <small>范围 1–{MAX_OUTPUT_COUNT} 张，默认 1 张。</small>
             </div>
             <PromptMentionEditor
@@ -876,20 +912,12 @@ export const WorkbenchPage = () => {
               uploadedAssets={displayAssets}
               textareaRef={promptInputRef}
             />
-            <div className="prompt-tools-row">
-              <select value={selectedTextModelId ?? ""} onChange={(event) => setSelectedTextModelId(Number(event.target.value) || null)} disabled={!textModels.length}>
-                {textModels.length ? textModels.map((model) => <option key={model.id} value={model.id}>{model.name}</option>) : <option value="">暂无文本模型</option>}
-              </select>
-              <Button variant="secondary" type="button" disabled={!prompt.trim() || !selectedTextModelId || isOptimizingPrompt} isLoading={isOptimizingPrompt} onClick={() => void optimizeCurrentPrompt()}>
-                优化提示词
-              </Button>
-            </div>
           </section>
         </div>
 
         <div className="generate-bar">
           <Button type="button" disabled={!canSubmit} onClick={submitTask}>
-            {isSubmitting ? <Loader2 className="spin-icon" size={17} /> : <Zap size={17} />}
+            {isSubmitting ? <LoadingIndicator className="spin-icon" size={17} /> : <Zap size={17} />}
             开始生成
             <span>（消耗 {isQuoteLoading ? "--" : quote === null ? "--" : quote * outputCount} 积分）</span>
           </Button>
@@ -908,7 +936,7 @@ export const WorkbenchPage = () => {
         <header className="result-header">
           <div>
             <h2 id="results-title">我的创作</h2>
-            <p>任务提交后会实时呈现进度、结果和后续操作。</p>
+            <p>仅展示最近 7 天的创作记录，生成图片保留 7 天，请及时下载。</p>
           </div>
           <Button variant="ghost" type="button" disabled={!exportableTaskCount} onClick={() => void exportTaskOutputs()}>
             <Check size={17} />
@@ -916,13 +944,13 @@ export const WorkbenchPage = () => {
           </Button>
         </header>
 
-        {tasks.length === 0 ? (
+        {tasks.length === 0 && !isLoadingHistory && !historyError ? (
           <div className="empty-state">
             <ImagePlus size={36} />
-            <h3>还没有创作任务</h3>
+            <h3>近 7 天暂无图生图任务</h3>
             <p>上传图片并提交生成后，处理中和结果卡片会显示在这里。</p>
           </div>
-        ) : (
+        ) : tasks.length ? (
           <div className="result-list">
             {tasks.map((task) => {
                 const isFailedTask = task.status === "failed" || task.status === "refunded";
@@ -958,13 +986,14 @@ export const WorkbenchPage = () => {
                         </div>
                       </div>
                       <span className={`status-badge status-badge--${task.status}`}>
-                        {isProcessingTask ? <Loader2 className="spin-icon" size={14} /> : null}
+                        {isProcessingTask ? <LoadingIndicator className="spin-icon" size={14} /> : null}
                         {getImageTaskStatusLabel(task, statusCopy)}
                       </span>
                     </div>
 
                     <div className="creation-card__specs" aria-label="输出规格">
-                      <span>{task.resolution || "默认清晰度"}</span>
+                      <span>{task.size || task.resolution || "默认清晰度"}</span>
+                      {task.output_format ? <span>{task.output_format.toUpperCase()}</span> : null}
                       <span>{task.aspect_ratio || "默认比例"}</span>
                     </div>
 
@@ -1022,12 +1051,17 @@ export const WorkbenchPage = () => {
                         </div>
                       </figure>
                       <figure>
-                        <figcaption>结果图</figcaption>
-                        <div className="comparison__media">
-                          {task.output_images[0] ? (
-                            <button className="image-preview-trigger" type="button" onClick={() => setPreviewAsset(task.output_images[0])}>
-                              <AssetPreviewImage asset={task.output_images[0]} alt="结果图" />
+                        <figcaption>结果图{task.output_images.length > 1 ? `（${task.output_images.length} 张）` : ""}</figcaption>
+                        <div className={task.output_images.length > 1 ? "comparison__media comparison__media--multi" : "comparison__media"}>
+                          {task.output_images.length ? task.output_images.map((asset, index) => (
+                            <button className="image-preview-trigger" type="button" key={asset.local_url || asset.url} onClick={() => setPreviewAsset(asset)}>
+                              <AssetPreviewImage asset={asset} alt={`结果图 ${index + 1}`} />
                             </button>
+                          )) : task.output_expired_at ? (
+                            <div className="processing-tile processing-tile--empty">
+                              <ImageOff size={34} /><strong>图片已过期</strong>
+                              <span>生成图片保留 7 天，任务和消费记录仍可查看。</span>
+                            </div>
                           ) : isFailedTask ? (
                             <div className="failure-tile">
                               <ImageOff size={34} />
@@ -1036,8 +1070,7 @@ export const WorkbenchPage = () => {
                             </div>
                           ) : (
                             <div className="processing-tile">
-                              <Loader2 className="spin-icon" size={28} />
-                              <span>{getImageTaskProcessingMessage(task)}</span>
+                              <LoadingArt label={getImageTaskProcessingMessage(task)} hint="完成后，作品将在这里呈现" compact />
                             </div>
                           )}
                         </div>
@@ -1048,11 +1081,11 @@ export const WorkbenchPage = () => {
                   <button
                     className={task.is_collected ? "task-button task-button--green is-active" : "task-button task-button--green"}
                     type="button"
-                    disabled={task.status !== "succeeded" || collectingTaskIds.includes(task.id)}
+                    disabled={Boolean(task.output_expired_at) || task.status !== "succeeded" || collectingTaskIds.includes(task.id)}
                     aria-pressed={task.is_collected}
                     onClick={() => void toggleTaskCollection(task)}
                   >
-                    {collectingTaskIds.includes(task.id) ? <Loader2 className="spin-icon" size={17} /> : <FolderPlus size={17} />}
+                    {collectingTaskIds.includes(task.id) ? <LoadingIndicator className="spin-icon" size={17} /> : <FolderPlus size={17} />}
                     {task.is_collected ? "已收藏" : "收藏"}
                   </button>
                   <button
@@ -1081,7 +1114,7 @@ export const WorkbenchPage = () => {
                     title={task.input_images.length ? "复用原图和文案重新生成" : "没有可复用的原图"}
                     onClick={() => void regenerateTask(task)}
                   >
-                    {regeneratingTaskIds.includes(task.id) ? <Loader2 className="spin-icon" size={17} /> : <RotateCcw size={17} />}
+                    {regeneratingTaskIds.includes(task.id) ? <LoadingIndicator className="spin-icon" size={17} /> : <RotateCcw size={17} />}
                     重新生成
                   </button>
                   <button
@@ -1099,7 +1132,25 @@ export const WorkbenchPage = () => {
                 );
               })}
           </div>
-        )}
+        ) : null}
+        <div className="workbench-history" aria-busy={isLoadingHistory}>
+          {historyError ? <p className="field-error" role="alert">历史记录加载失败：{historyError}</p> : null}
+          {hasMoreHistory || historyError || isLoadingHistory ? (
+            <Button
+              type="button"
+              variant="secondary"
+              fullWidth
+              isLoading={isLoadingHistory}
+              onClick={() => void loadHistoryPage(historyCursor)}
+            >
+              {isLoadingHistory ? "正在加载历史记录…" : historyError ? "重试加载" : "加载更早记录"}
+            </Button>
+          ) : null}
+          <p className="workbench-history__summary" role="status">
+            {tasks.length ? `已加载 ${tasks.length} 条` : ""}
+            {tasks.length > 0 && !hasMoreHistory && !isLoadingHistory && !historyError ? " · 已显示近 7 天全部记录" : ""}
+          </p>
+        </div>
       </aside>
 
       {confirmDeleteTaskId ? (

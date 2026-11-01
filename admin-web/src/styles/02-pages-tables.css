@@ -817,3 +817,13 @@ td small {
 .task-query-toolbar .search-field { flex: 1 1 220px; min-width: 0; }
 .task-query-toolbar .search-field > span { white-space: nowrap; font-size: 13px; }
 .task-user-id { display: block; margin-top: 4px; color: var(--text-muted, #64748b); white-space: nowrap; }
+
+.agent-key-whitelist { min-width: 0; margin: 20px 0; padding: 16px; border: 1px solid var(--border); border-radius: 12px; }
+.agent-key-whitelist legend { padding: 0 6px; font-weight: 650; }
+.agent-key-whitelist__groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 10px; max-height: 360px; overflow-y: auto; margin-top: 12px; }
+.agent-key-whitelist__option { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.agent-key-whitelist__option:focus-within { outline: 2px solid var(--primary, #2563eb); outline-offset: 2px; }
+.agent-key-whitelist__option > span:first-of-type { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.agent-key-whitelist__option small { display: block; margin-top: 4px; opacity: .7; }
+.agent-key-whitelist__option.is-default { background: var(--surface-muted); cursor: default; }
+.agent-key-whitelist__badge { flex-shrink: 0; font-size: 12px; color: var(--primary, #2563eb); }

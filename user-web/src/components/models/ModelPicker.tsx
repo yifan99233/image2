@@ -1,3 +1,4 @@
+import { LoadingIndicator } from "@/components/ui/LoadingIndicator";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search, Sparkles, X } from "lucide-react";
@@ -72,7 +73,11 @@ export const ModelPicker = ({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setIsOpen(false);
     };
-    const focusTimer = window.setTimeout(() => searchInputRef.current?.focus(), 0);
+    const focusTimer = window.setTimeout(() => {
+      if (window.matchMedia?.("(hover: hover) and (pointer: fine)")?.matches) {
+        searchInputRef.current?.focus();
+      }
+    }, 0);
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       window.clearTimeout(focusTimer);
@@ -102,7 +107,7 @@ export const ModelPicker = ({
         aria-haspopup="dialog"
         aria-expanded={isOpen}
       >
-        <Sparkles size={15} aria-hidden />
+        {isLoading ? <LoadingIndicator size={15} /> : <Sparkles size={15} aria-hidden />}
         <span className="model-picker__trigger-label">
           {isLoading ? "加载模型中" : selectedModel?.name ?? "选择模型"}
         </span>

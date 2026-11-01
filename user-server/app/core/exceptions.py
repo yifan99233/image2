@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 
 VALIDATION_ERROR_MESSAGE = "请求参数无效"
 
@@ -35,6 +36,13 @@ def validation_error_response(exc: RequestValidationError) -> JSONResponse:
 
 
 def install_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(IntegrityError)
+    async def expired_reference_handler(_: Request, exc: IntegrityError) -> JSONResponse:
+        if getattr(exc.orig, "sqlstate", None) == "23514" and "Image has expired" in str(exc.orig):
+            return JSONResponse(status_code=410, content={"code": 41040, "message": "图片已过期", "data": None})
+        # Preserve the existing error/logging behavior for unrelated failures.
+        raise exc
+
     @app.exception_handler(BusinessError)
     async def business_error_handler(_: Request, exc: BusinessError) -> JSONResponse:
         return JSONResponse(

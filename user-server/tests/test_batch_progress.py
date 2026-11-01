@@ -71,9 +71,9 @@ async def test_complete_2000_task_summary_visibility_and_live_statuses(sessions,
     assert summaries[0]["pending_count"] + summaries[0]["queued_count"] + summaries[0]["running_count"] == 0
 
 
-async def test_batch_pages_do_not_repeat_and_count_across_discovery_window(sessions, batch_client):
-    await seed(sessions, "old-only", ["queued"], created_at=datetime.now(UTC) - timedelta(days=31))
-    await seed(sessions, "boundary", ["succeeded"], created_at=datetime.now(UTC) - timedelta(days=31))
+async def test_batch_pages_do_not_repeat_and_only_count_last_seven_days(sessions, batch_client):
+    await seed(sessions, "old-only", ["queued"], created_at=datetime.now(UTC) - timedelta(days=8))
+    await seed(sessions, "boundary", ["succeeded"], created_at=datetime.now(UTC) - timedelta(days=8))
     await seed(sessions, "boundary", ["running"], user_id=1, site_id=1, task_no="boundary-new")
     await seed(sessions, "edit", ["succeeded"], work_type="batch_edit")
     for i in range(12):
@@ -90,7 +90,7 @@ async def test_batch_pages_do_not_repeat_and_count_across_discovery_window(sessi
         cursor = page["next_cursor"]
     assert len(ids) == len(set(ids)) == 13 and "old-only" not in ids and "edit" not in ids
     summary = (await batch_client.post("/image-tasks/batches/statuses", json={"batch_ids": ["boundary"]})).json()["data"][0]
-    assert summary["task_count"] == 2 and summary["running_count"] == summary["succeeded_count"] == 1
+    assert summary["task_count"] == 1 and summary["running_count"] == 1 and summary["succeeded_count"] == 0
     edit = (await batch_client.get("/image-tasks/batches?work_type=batch_edit")).json()["data"]
     assert [item["batch_id"] for item in edit["items"]] == ["edit"]
 

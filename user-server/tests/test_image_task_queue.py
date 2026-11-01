@@ -70,3 +70,53 @@ async def test_old_batch_dispatch_claims_only_free_slots_and_continues_after_com
         next_claim = await catalog.queued_image_task_payloads_for_dispatch(db, limit=free_slots)
         assert len(next_claim) == free_slots
         assert not set(ids).intersection(row["task_id"] for row in next_claim)
+
+
+@pytest.mark.parametrize("already_running", [False, True])
+@pytest.mark.parametrize("blocked_by", ["user", "model"])
+async def test_large_saturated_batch_does_not_hide_later_eligible_tasks(sessions, already_running, blocked_by):
+    """Cross the old 2,000-row window without bypassing either budget."""
+    now = datetime.now(UTC)
+    async with sessions() as db:
+        await db.execute(update(User).where(User.id == 1).values(
+            image_concurrency_limit=1 if blocked_by == "user" else 1000))
+        await db.execute(update(User).where(User.id == 2).values(image_concurrency_limit=1000))
+        await db.execute(update(catalog.image_models_table).where(catalog.image_models_table.c.id == 5)
+                         .values(concurrency_limit=1 if blocked_by == "model" else 1000))
+        await db.execute(catalog.image_models_table.insert().values(
+            id=6, site_id=1, provider_id=1, name="other model", code="other-model",
+            vendor_model="other", work_type="image_edit", concurrency_limit=3,
+            is_active=True, is_public=True))
+        await db.commit()
+    if already_running:
+        await seed(sessions, "in-flight", ["running"], worker_started_at=now, worker_heartbeat_at=now)
+    await seed(sessions, "blocked", ["queued"] * 5000, created_at=now - timedelta(hours=2))
+    # Same model / different user tests user isolation; same user / different
+    # model tests model isolation and retains the shared user budget.
+    eligible_user = 2 if blocked_by == "user" else 1
+    eligible_model = 5 if blocked_by == "user" else 6
+    await seed(sessions, "eligible", ["queued"] * 4, user_id=eligible_user,
+               model_id=eligible_model, created_at=now)
+    async with sessions() as db:
+        claimed = await catalog.queued_image_task_payloads_for_dispatch(db, limit=500)
+        eligible = [row for row in claimed if row["task_no"].startswith("eligible-")]
+        expected = 4 if blocked_by == "user" else 3
+        assert len(eligible) == expected
+        assert [row["prompt"] for row in eligible] == [f"prompt-{i}" for i in range(expected)]
+        assert len(claimed) == expected + (0 if already_running else 1)
+        assert await db.scalar(select(func.count()).select_from(catalog.image_tasks_table).where(
+            catalog.image_tasks_table.c.batch_id == "blocked", catalog.image_tasks_table.c.status == "running")) == (0 if already_running else 1)
+        # A second claim must count the previous transaction's work and never
+        # duplicate tasks or exceed model 6's limit of three.
+        following = await catalog.queued_image_task_payloads_for_dispatch(db, limit=500)
+        assert following == []
+
+
+async def test_dispatch_respects_other_dispatcher_advisory_lock(sessions):
+    await seed(sessions, "queued", ["queued"])
+    async with sessions() as owner, sessions() as contender:
+        await owner.execute(catalog.text("SELECT pg_advisory_xact_lock(:key)"),
+                            {"key": catalog.IMAGE_TASK_DISPATCHER_ADVISORY_LOCK_KEY})
+        assert await catalog.queued_image_task_payloads_for_dispatch(contender, limit=500) == []
+        await owner.rollback()
+        assert len(await catalog.queued_image_task_payloads_for_dispatch(contender, limit=500)) == 1

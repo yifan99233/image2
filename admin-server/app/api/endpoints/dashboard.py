@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, time
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import BigInteger, Boolean, Column, DateTime, Integer, MetaData, Numeric, String, Table, and_, case, desc, func, select
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,6 +52,7 @@ credit_ledger_table = Table(
     Column("amount", Numeric(20, 2)),
     Column("biz_type", String),
     Column("biz_id", String),
+    Column("idempotency_key", String),
     Column("description", String),
     Column("is_flagged", Boolean),
     Column("flag_reason", String),
@@ -405,3 +406,16 @@ async def metrics(
                 "customer_owner_stats": [],
             }
         )
+
+
+@router.get("/analytics", response_model=ApiResponse[dict])
+async def analytics(
+    days: int = 7,
+    day_offset: int = 0,
+    current_admin: AdminUser = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> ApiResponse[dict]:
+    from app.services.dashboard_analytics import load_analytics
+    if days not in (1, 7, 15, 30) or day_offset not in (0, 1) or (day_offset == 1 and days != 1):
+        raise HTTPException(status_code=422, detail="统计周期仅支持当天、昨天、7、15、30 天")
+    return ApiResponse.ok(await load_analytics(db, current_admin, days, day_offset=day_offset))

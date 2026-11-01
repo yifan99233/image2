@@ -6,6 +6,7 @@ export const getImageTaskStatusLabel = (
   task: ImageTask,
   labels: ImageTaskStatusLabels,
 ): string => {
+  if (task.output_expired_at) return "图片已过期";
   if (task.progress_stage === "downloading") return "图片下载中";
   return labels[task.status];
 };

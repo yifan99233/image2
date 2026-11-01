@@ -34,6 +34,7 @@ def test_explicit_price_entries_keep_each_exact_specification():
             "resolution": "4k",
             "aspect_ratio": "16:9",
             "output_count": 1,
+            "quality": "any",
             "credit_cost": 24,
         },
         {
@@ -41,6 +42,7 @@ def test_explicit_price_entries_keep_each_exact_specification():
             "resolution": "4k",
             "aspect_ratio": "16:9",
             "output_count": 1,
+            "quality": "any",
             "credit_cost": 30,
         },
     ]
@@ -160,3 +162,14 @@ async def test_unchanged_price_does_not_create_another_version():
     assert created is False
     db.add.assert_not_called()
     db.flush.assert_not_awaited()
+
+
+def test_quality_is_part_of_price_identity_and_batch_uniqueness():
+    from app.api.endpoints.admin_data import model_price_identity_condition
+    cell = dict(work_type="text_to_image", resolution="1k", aspect_ratio="1:1", credit_cost=3)
+    entries = explicit_model_price_entries({"quality": "low", "price_entries": [cell, {**cell, "quality": "high", "credit_cost": 6}]}, 1)
+    assert [e["quality"] for e in entries] == ["low", "high"]
+    condition = model_price_identity_condition(site_id=1, model_id=215, work_type="text_to_image", resolution="1k", aspect_ratio="1:1", output_count=1, quality="high")
+    assert "image_model_prices.quality = 'high'" in str(condition.compile(compile_kwargs={"literal_binds": True}))
+    with pytest.raises(AppException):
+        explicit_model_price_entries({"quality": "auto", "price_entries": [cell]}, 1)

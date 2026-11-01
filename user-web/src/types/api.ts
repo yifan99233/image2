@@ -177,17 +177,24 @@ export type ImageModel = {
   risk_hint?: string | null;
   max_input_images: number;
   max_output_images: number;
+  images_per_generation?: number;
   storage_mode?: "local" | "third_party" | "native" | string;
+  supports_quality?: boolean;
+  supports_custom_size?: boolean;
+  supports_output_format?: boolean;
   supported_resolutions: ModelOption[];
   supported_aspect_ratios: ModelOption[];
   supported_durations?: ModelOption[];
 };
 
 export type ImageTaskStatus = "pending" | "queued" | "running" | "succeeded" | "failed" | "refunded";
+export type ImageOutputFormat = "png" | "jpeg" | "webp";
+
 export type ImageQuality = "auto" | "low" | "medium" | "high";
 export type ImageTaskProgressStage = ImageTaskStatus | "generating" | "downloading";
 
 export type ImageTask = {
+  output_expired_at?: string | null;
   id: number;
   task_no: string;
   batch_id?: string;
@@ -201,6 +208,8 @@ export type ImageTask = {
   resolution: string;
   aspect_ratio: string;
   quality: ImageQuality;
+  size?: string | null;
+  output_format?: ImageOutputFormat | null;
   duration?: string;
   credit_cost: number;
   status: ImageTaskStatus;
@@ -266,6 +275,8 @@ export type CreateImageTaskRequest = {
   resolution: string;
   aspect_ratio: string;
   quality?: ImageQuality;
+  size?: string;
+  output_format?: ImageOutputFormat;
   duration?: string;
   input_image_ids: number[];
   input_image_url?: string;

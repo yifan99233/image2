@@ -1,3 +1,4 @@
+import { LoadingState } from "@/components/ui/LoadingState";
 import { useCallback, useEffect, useState } from "react";
 import {
   BadgeCheck,
@@ -204,7 +205,7 @@ export const OpenAgentInstallPage = () => {
           <small>Mac / Windows 全架构覆盖</small>
         </div>
         {error ? <div className="list-state list-state--error"><span>{error}</span><button className="task-button task-button--blue" type="button" onClick={load}>重试</button></div> : null}
-        {isLoading ? <div className="list-state">正在加载 Codex定制版下载版本...</div> : null}
+        {isLoading ? <LoadingState label="正在加载下载版本…" /> : null}
         <div className="openagent-download-groups">
           <DownloadGroup title="macOS" subtitle="Apple Silicon 与 Intel 芯片" items={macDownloads} />
           <DownloadGroup title="Windows" subtitle="64 位 / 32 位，安装包与免安装包" items={windowsDownloads} />
@@ -332,7 +333,7 @@ export const OpenAgentUsagePage = () => {
       {error ? <div className="list-state list-state--error"><span>{error}</span><button className="task-button task-button--blue" type="button" onClick={() => void load(page)}>重试</button></div> : null}
 
       <section className="usage-table-card">
-        {isLoading ? <div className="list-state">正在加载 Codex定制版使用记录...</div> : null}
+        {isLoading ? <LoadingState label="正在加载使用记录…" /> : null}
         {!isLoading && records.length ? (
           <div className="usage-table-wrap">
             <table className="usage-table">

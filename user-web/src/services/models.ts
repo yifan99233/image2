@@ -1,5 +1,5 @@
 import { request } from "@/services/http";
-import type { ImageModel, ImageQuote } from "@/types/api";
+import type { ImageModel, ImageQuote, ImageQuality } from "@/types/api";
 
 export const modelService = {
   async getModels(workType = "image_edit"): Promise<ImageModel[]> {
@@ -13,6 +13,7 @@ export const modelService = {
     aspectRatio: string,
     outputCount: number,
     duration?: string,
+    quality: ImageQuality = "auto",
   ): Promise<ImageQuote> {
     return request<ImageQuote>(`/models/${modelId}/quote`, {
       method: "POST",
@@ -22,6 +23,7 @@ export const modelService = {
         aspect_ratio: aspectRatio,
         duration: duration || undefined,
         output_count: outputCount,
+        quality,
       },
     });
   },

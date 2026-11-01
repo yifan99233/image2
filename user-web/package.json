@@ -4,10 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "test:recharge-access": "node --test tests/rechargeAccess.ui.test.mjs",
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "test:ccswitch": "node --experimental-strip-types --test src/utils/ccswitch.test.mjs",
-    "test:download": "node --experimental-strip-types --test src/utils/downloadTarget.test.mjs",
+    "test:download": "node --experimental-strip-types --test src/utils/downloadTarget.test.mjs tests/streamingDownload.test.mjs",
     "test:browser-export": "node --experimental-strip-types --test src/utils/browserBatchExport.test.mjs",
     "test:image-edit": "node --experimental-strip-types --test src/utils/imageEditNavigation.test.mjs",
     "test:auth-invite": "node --experimental-strip-types --test src/utils/authInviteContext.test.mjs",
@@ -19,6 +20,7 @@
     "prebuild": "npm run build:canvas",
     "predev": "npm run build:canvas",
     "test:batch-groups": "node --experimental-strip-types --test src/utils/batchGroups.test.mjs src/utils/batchPrompts.test.mjs src/utils/batchGroupUploads.test.mjs && node --test tests/batchGroups.ui.test.mjs tests/imageBatchSubmission.test.mjs",
+    "test:image-output": "node --test tests/imageOutputSettings.ui.test.mjs tests/imageBatchSubmission.test.mjs",
     "test:workbench-previews": "node --test tests/workbenchPreviews.ui.test.mjs"
   },
   "dependencies": {

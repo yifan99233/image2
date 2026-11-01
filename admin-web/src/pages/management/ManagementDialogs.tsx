@@ -640,6 +640,7 @@ function PriceDialog({ models, onClose, afterDone }: { models: AdminImageModel[]
   const [surcharges, setSurcharges] = useState<PriceCellValues>({});
   const [initialSurcharges, setInitialSurcharges] = useState<PriceCellValues>({});
   const [quickSurcharge, setQuickSurcharge] = useState("");
+  const [priceQuality, setPriceQuality] = useState<"any" | "low" | "medium" | "high">("any");
   const [initialCellValues, setInitialCellValues] = useState<PriceCellValues>({});
   const [activePrices, setActivePrices] = useState<Awaited<ReturnType<typeof getActiveModelPrices>>>([]);
   const [quickFillValue, setQuickFillValue] = useState("");
@@ -685,17 +686,17 @@ function PriceDialog({ models, onClose, afterDone }: { models: AdminImageModel[]
   }, [form.model_id]);
 
   useEffect(() => {
-    const values = activePriceCellValues(activePrices, outputCount);
+    const values = activePriceCellValues(activePrices, outputCount, priceQuality);
     setInitialCellValues(values);
     setCellValues(values);
     const fees: PriceCellValues = {};
     for (const price of activePrices) {
       const key = modelPriceCellKey(price.work_type, price.resolution, price.aspect_ratio);
-      if (price.is_active && price.output_count === outputCount && fees[key] === undefined) fees[key] = String(price.fixed_surcharge ?? 0);
+      if (price.is_active && price.output_count === outputCount && (price.quality ?? "any") === priceQuality && fees[key] === undefined) fees[key] = String(price.fixed_surcharge ?? 0);
     }
     setSurcharges(fees);
     setInitialSurcharges(fees);
-  }, [activePrices, outputCount]);
+  }, [activePrices, outputCount, priceQuality]);
 
   function switchModel(modelId: number) {
     setIsLoadingPrices(true);
@@ -704,6 +705,7 @@ function PriceDialog({ models, onClose, afterDone }: { models: AdminImageModel[]
     setCellValues({});
     setForm((current) => ({ ...current, model_id: modelId, output_count: 1 }));
     setQuickFillValue("");
+    setPriceQuality("any");
   }
 
   function setCellValue(key: string, value: string) {
@@ -766,6 +768,7 @@ function PriceDialog({ models, onClose, afterDone }: { models: AdminImageModel[]
         change_reason: form.change_reason.trim(),
         price_matrix: {},
         price_entries: priceEntries,
+        quality: selectedIsText || selectedIsVideo ? "any" : priceQuality,
       });
       afterDone();
       onClose();
@@ -798,6 +801,9 @@ function PriceDialog({ models, onClose, afterDone }: { models: AdminImageModel[]
 
         <div className="form-grid">
           <label className="field">模型<select value={form.model_id} disabled={isSubmitting} onChange={(event) => switchModel(Number(event.target.value))}>{models.map((model) => <option value={model.id} key={model.id}>{model.name}</option>)}</select></label>
+          {!selectedIsText && !selectedIsVideo && <label className="field">质量<select value={priceQuality} disabled={isSubmitting || changedCellCount > 0} onChange={(event) => setPriceQuality(event.target.value as typeof priceQuality)}>
+            <option value="any">通用价格</option><option value="low">低</option><option value="medium">中（含自动）</option><option value="high">高</option>
+          </select><small>质量专属价格优先；未配置时使用通用价格。有未保存修改时请先保存或关闭。</small></label>}
           {!selectedIsText && !selectedIsVideo ? (
             <label className="field">输出张数<input type="number" min={1} step={1} disabled={isSubmitting} value={form.output_count} onChange={(event) => setForm((current) => ({ ...current, output_count: Math.max(1, Number(event.target.value) || 1) }))} /></label>
           ) : (

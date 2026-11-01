@@ -45,13 +45,14 @@ def agent_account_requires_sync(account: UserAgentAccount | None, billing_team_i
         or account.status != "active"
         or account.agent_user_id is None
         or account.team_id != billing_team_id
-        or not account.text_api_key
         or not account.image_api_key
     )
 
 
 def _configured_group_ids(config: AgentConfig) -> list[int]:
-    return sorted({int(group_id) for group_id in (config.text_group_id, config.image_group_id) if group_id})
+    return sorted({int(group_id) for group_id in (
+        config.text_group_id, config.image_group_id, *(getattr(config, "key_group_whitelist", None) or [])
+    ) if isinstance(group_id, int) and not isinstance(group_id, bool) and group_id > 0})
 
 
 async def _sync_configured_allowed_groups(
@@ -555,7 +556,6 @@ async def sync_agent_account(db: AsyncSession, user: User, password: str | None 
         if (
             was_active
             and int(mapped_key_count or 0) > 0
-            and member_account.text_api_key
             and member_account.image_api_key
         ):
             member_account.status = "active"
@@ -581,18 +581,28 @@ async def sync_agent_account(db: AsyncSession, user: User, password: str | None 
             team_id=team_id,
             legacy=legacy,
         )
-        text_key = await _ensure_default_key(
-            db,
-            client=client,
-            token=token,
-            account=member_account,
-            user=user,
-            team_id=team_id,
-            group_id=int(config.text_group_id) if config.text_group_id else None,
-            kind="text",
-            display_name="Token Key",
-            existing_keys=existing_keys,
-        )
+        text_key = None
+        if config.text_group_id:
+            try:
+                text_key = await _ensure_default_key(
+                    db,
+                    client=client,
+                    token=token,
+                    account=member_account,
+                    user=user,
+                    team_id=team_id,
+                    group_id=int(config.text_group_id) if config.text_group_id else None,
+                    kind="text",
+                    display_name="Token Key",
+                    existing_keys=existing_keys,
+                )
+            except AgentAPIError as error:
+                if error.status_code != 404 or "group not found" not in str(error).casefold():
+                    raise
+                logger.warning(
+                    "skipping missing text group site_id=%s user_id=%s text_group_id=%s",
+                    user.site_id, user.id, config.text_group_id,
+                )
         image_key = await _ensure_default_key(
             db,
             client=client,
@@ -622,8 +632,8 @@ async def sync_agent_account(db: AsyncSession, user: User, password: str | None 
         member_account.failure_message = _failure_message(error)
         return member_account
 
-    member_account.text_api_key_id = text_key.id
-    member_account.text_api_key = text_key.key
+    member_account.text_api_key_id = text_key.id if text_key else None
+    member_account.text_api_key = text_key.key if text_key else None
     member_account.image_api_key_id = image_key.id
     member_account.image_api_key = image_key.key
     member_account.status = "active"

@@ -1,3 +1,4 @@
+import { LoadingIndicator } from "./LoadingIndicator";
 import type { ButtonHTMLAttributes, PropsWithChildren } from "react";
 import { clsx } from "clsx";
 
@@ -23,9 +24,10 @@ export const Button = ({
   <button
     className={clsx("button", `button--${variant}`, fullWidth && "button--full", className)}
     disabled={disabled || isLoading}
+    aria-busy={isLoading || undefined}
     {...props}
   >
-    {isLoading ? <span className="spinner" aria-hidden /> : null}
+    {isLoading ? <LoadingIndicator /> : null}
     {children}
   </button>
 );

@@ -31,4 +31,28 @@ if command -v nginx >/dev/null 2>&1; then
   nginx -t
   systemctl reload nginx
 fi
+if [[ "$1" == on ]]; then
+  # A flag alone cannot prove every public virtual host includes the handler.
+  check_dir="$(mktemp -d)"
+  trap 'rm -rf "$check_dir"' EXIT
+  for host in ${IMAGE2_MAINTENANCE_VERIFY_HOSTS:-magic.shyfai.cn magic.shyfai.com}; do
+    for path in / /api/site; do
+      verified=false
+      # Reload is graceful: give new workers a bounded interval to take over.
+      for attempt in {1..10}; do
+        status="$(curl --silent --show-error --max-time 20 -D "$check_dir/headers" -o "$check_dir/body" -w '%{http_code}' "https://$host$path")"
+        if [[ "$status" == 503 ]] && grep -q 'data-image2-maintenance="true"' "$check_dir/body" && grep -qi '^Retry-After: 60' "$check_dir/headers"; then
+          verified=true
+          break
+        fi
+        sleep 1
+      done
+      if [[ "$verified" != true ]]; then
+        echo "Maintenance not verified for $host$path (HTTP $status); flag retained, do not deploy." >&2
+        exit 1
+      fi
+      echo "maintenance_verified=$host$path status=$status"
+    done
+  done
+fi
 echo "maintenance=$1"

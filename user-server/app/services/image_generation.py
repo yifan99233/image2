@@ -10,14 +10,18 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from time import perf_counter, sleep
 from typing import Literal
 from uuid import uuid4
 
 from app.core.config import settings
 from app.core.exceptions import BusinessError
-from app.services.image_parameters import normalize_image_quality
+from app.services.image_parameters import normalize_image_quality, normalize_image_size, normalize_image_output_format
+from app.services.image_provider_models import (
+    OPENAI_IMAGES_API_MODEL_PREFIXES, is_banana_images_model, is_adx1_images_model, is_adx2_images_model,
+    is_midjourney_images_model, MIDJOURNEY_OUTPUT_COUNT, MIDJOURNEY_ASPECT_RATIOS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +37,8 @@ class GenerationModelConfig:
     timeout_seconds: int
     vendor_model: str
     disable_retry: bool = False
+    cdn_key: str = field(default="", repr=False)
+    native_image_base_url: str = ""
 
 
 @dataclass(frozen=True)
@@ -47,6 +53,7 @@ class GeneratedImage:
     # The upstream may already have a short-lived R2 object. Keep that URL
     # separate from source_url (which is used by native video storage).
     hot_url: str | None = None
+    additional_images: tuple["GeneratedImage", ...] = ()
 
 
 IMAGE_EDIT_INSTRUCTION = (
@@ -383,7 +390,7 @@ def _safe_provider_url(url: str) -> str:
 
 def _safe_request_value(value: object) -> object:
     if isinstance(value, dict):
-        return {str(key): _safe_request_value(item) for key, item in value.items() if str(key).lower() not in {"api_key", "authorization", "token", "password", "secret"}}
+        return {str(key): _safe_request_value(item) for key, item in value.items() if str(key).lower() not in {"api_key", "authorization", "token", "password", "secret", "cdn_key", "gateway_cdn_key"}}
     if isinstance(value, list):
         return [_safe_request_value(item) for item in value]
     if isinstance(value, str) and (value.startswith("data:") or len(value) > 4096):
@@ -790,7 +797,14 @@ def _decode_base64_image(value: str, default_mime_type: str = "image/png") -> Ge
         if ";" in header:
             mime_type = header[5:].split(";")[0] or default_mime_type
     try:
-        return GeneratedImage(content=base64.b64decode(payload), mime_type=mime_type)
+        content = base64.b64decode(payload)
+        if content.startswith(b"\xff\xd8\xff"):
+            mime_type = "image/jpeg"
+        elif content.startswith(b"RIFF") and content[8:12] == b"WEBP":
+            mime_type = "image/webp"
+        elif content.startswith(b"\x89PNG\r\n\x1a\n"):
+            mime_type = "image/png"
+        return GeneratedImage(content=content, mime_type=mime_type)
     except Exception as exc:
         raise BusinessError("模型返回的图片数据无法解码", code=50213, status_code=502) from exc
 
@@ -818,7 +832,16 @@ def _image_from_text_value(value: str, timeout: int) -> GeneratedImage | None:
     return None
 
 
-def _extract_openai_images_result(payload: dict, timeout: int) -> GeneratedImage:
+def _extract_openai_images_result(payload: dict, timeout: int, *, native_base_url: str = "") -> GeneratedImage:
+    if native_base_url:
+        # Dedicated CDN delivery: retain the final URL, without GET or re-upload.
+        for item in payload.get("data") or []:
+            url = str(item.get("url") or "").strip()
+            parsed = urllib.parse.urlsplit(url)
+            if url.startswith(native_base_url) and parsed.scheme == "https" and not parsed.username and not parsed.fragment and not any(p in (".", "..") for p in urllib.parse.unquote(parsed.path).split("/")):
+                mime = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".png": "image/png"}.get("." + parsed.path.rsplit(".", 1)[-1].lower(), "image/png")
+                return GeneratedImage(content=b"", mime_type=mime, source_url=url)
+        raise BusinessError("网关未返回专属 CDN 图片链接，请通过原任务查看详情", code=50214, status_code=502)
     for item in payload.get("data") or []:
         hot_url = str(item.get("r2_url") or "").strip() or _r2_hot_url_candidate(item.get("url"))
         download_url = hot_url or item.get("url")
@@ -867,20 +890,27 @@ def _extract_gemini_image_result(payload: dict) -> GeneratedImage:
 
 
 
-OPENAI_IMAGES_API_MODEL_PREFIXES = (
-    "gpt-image",
-    "grok-imagine-image",
-    "agent5-gpt-image",
-    "agent5-nano-banana",
-    "firefly-gpt-image",
-    "firefly-nano-banana",
-)
-
-
 def _uses_openai_images_api(vendor_model: str) -> bool:
     """Return whether a model uses the OpenAI-compatible Images API."""
     model = (vendor_model or "").strip().lower()
     return model.startswith(OPENAI_IMAGES_API_MODEL_PREFIXES)
+
+
+def image_output_capabilities(config: GenerationModelConfig) -> dict[str, bool]:
+    images_api = _provider_kind(config) == "openai" and _uses_openai_images_api(config.vendor_model)
+    model = config.vendor_model.strip().lower().removeprefix("agent5-").removeprefix("firefly-")
+    return {
+        "supports_custom_size": images_api and model.startswith("gpt-image-2"),
+        "supports_output_format": images_api and model.startswith("gpt-image"),
+    }
+
+
+def validate_image_output_options(config: GenerationModelConfig, size: str | None, output_format: str | None) -> None:
+    capabilities = image_output_capabilities(config)
+    if size and not capabilities["supports_custom_size"]:
+        raise BusinessError("当前模型不支持自定义尺寸", code=40001)
+    if output_format and not capabilities["supports_output_format"]:
+        raise BusinessError("当前模型不支持指定图片格式", code=40001)
 
 
 def _openai_images_endpoint(base_url: str) -> str:
@@ -1184,6 +1214,8 @@ def generate_image(
     aspect_ratio: str = "",
     *,
     quality: str = "auto",
+    size: str | None = None,
+    output_format: str | None = None,
     client_reference: str = "",
     on_model_started: Callable[[], None] | None = None,
     on_model_completed: Callable[[GeneratedImage], None] | None = None,
@@ -1191,6 +1223,15 @@ def generate_image(
     if not config.api_key.strip():
         raise BusinessError("模型供应商 API Key 为空", code=50201, status_code=502)
     quality = normalize_image_quality(quality)
+    is_midjourney = _provider_kind(config) == "openai" and is_midjourney_images_model(config.vendor_model)
+    if is_midjourney:
+        if input_image:
+            raise BusinessError("当前 Midjourney 仅支持文生图", code=40034)
+        if (aspect_ratio.strip() or "1:1") not in MIDJOURNEY_ASPECT_RATIOS:
+            raise BusinessError("Midjourney 不支持该图片比例", code=40034)
+    size = normalize_image_size(size)
+    output_format = normalize_image_output_format(output_format)
+    validate_image_output_options(config, size, output_format)
     source_images = _input_images_from_values(
         input_image,
         settings.image_result_download_timeout_seconds,
@@ -1201,7 +1242,9 @@ def generate_image(
         on_model_started()
     deadline_monotonic = _request_deadline_monotonic(config.timeout_seconds)
     provider_kind = _provider_kind(config)
-    uses_images_api = _uses_openai_images_api(config.vendor_model)
+    uses_images_api = _uses_openai_images_api(config.vendor_model) or (
+        provider_kind == "openai" and (is_banana_images_model(config.vendor_model) or is_midjourney)
+    )
     if uses_images_api:
         # The upstream Images API owns image parameters. Keep the user prompt
         # opaque and pass size/quality as structured fields below.
@@ -1250,13 +1293,38 @@ def generate_image(
         return _attach_provider_trace(_extract_gemini_image_result(payload), payload)
 
     if uses_images_api:
-        size = _openai_size(resolution, aspect_ratio)
-        common_fields: dict[str, str] = {
+        # Keep the requested output tier. V4 owns the per-model 1K upstream
+        # conversion and durable 2K/4K postprocessing plan.
+        common_fields: dict[str, str | int] = {
             "model": config.vendor_model,
             "prompt": final_prompt,
-            "size": size,
-            "quality": quality,
         }
+        if is_midjourney:
+            common_fields.update(
+                n=MIDJOURNEY_OUTPUT_COUNT, aspect_ratio=aspect_ratio.strip() or "1:1",
+                version="v7", mode="normal", speed="fast", response_format="url",
+            )
+        elif is_banana_images_model(config.vendor_model):
+            # Banana consumes independent resolution/ratio fields. A pixel size
+            # or a prompt instruction cannot substitute for these parameters.
+            common_fields["resolution"] = resolution.strip().lower() or "1k"
+            common_fields["aspect_ratio"] = aspect_ratio.strip() or "1:1"
+        elif is_adx2_images_model(config.vendor_model):
+            common_fields.update(resolution=resolution.strip().lower() or "1k",
+                                 aspect_ratio=aspect_ratio.strip() or "1:1", quality=quality)
+            if size:
+                common_fields["size"] = size
+        else:
+            common_fields["size"] = size or _openai_size(resolution, aspect_ratio)
+            common_fields["quality"] = quality
+            if is_adx1_images_model(config.vendor_model):
+                common_fields["resolution"] = resolution.strip().lower() or "1k"
+        if config.cdn_key:
+            common_fields["cdn_key"] = config.cdn_key
+            common_fields["gateway_cdn_key"] = config.cdn_key
+            common_fields["response_format"] = "url"
+        if output_format:
+            common_fields["output_format"] = output_format
         normalized_client_reference = str(client_reference or "").strip()
         if normalized_client_reference:
             common_fields["client_reference"] = normalized_client_reference
@@ -1270,7 +1338,7 @@ def generate_image(
             )
             _notify_model_completed(payload, on_model_completed, deadline_monotonic=deadline_monotonic)
             return _attach_provider_trace(
-                _extract_openai_images_result(payload, settings.image_result_download_timeout_seconds),
+                _extract_openai_images_result(payload, settings.image_result_download_timeout_seconds, native_base_url=config.native_image_base_url),
                 payload,
             )
         payload = _post_json(
@@ -1280,8 +1348,17 @@ def generate_image(
             _remaining_request_timeout(deadline_monotonic),
         )
         _notify_model_completed(payload, on_model_completed, deadline_monotonic=deadline_monotonic)
+        if is_midjourney:
+            results = payload.get("data")
+            if not isinstance(results, list) or len(results) != MIDJOURNEY_OUTPUT_COUNT:
+                raise BusinessError("Midjourney 未返回完整的四张图片，请通过原任务查看详情", code=50214, status_code=502)
+            images = [
+                _extract_openai_images_result({"data": [item]}, settings.image_result_download_timeout_seconds)
+                for item in results
+            ]
+            return _attach_provider_trace(replace(images[0], additional_images=tuple(images[1:])), payload)
         return _attach_provider_trace(
-            _extract_openai_images_result(payload, settings.image_result_download_timeout_seconds),
+            _extract_openai_images_result(payload, settings.image_result_download_timeout_seconds, native_base_url=config.native_image_base_url),
             payload,
         )
 

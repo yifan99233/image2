@@ -540,3 +540,88 @@ async def test_legacy_key_cleanup_calls_delete_api_and_marks_mappings_deleted():
 
     assert client.deleted == [("legacy-token", 109), ("legacy-token", 114)]
     assert all(mapping.is_deleted for mapping in mappings)
+
+
+@pytest.mark.parametrize("text_group,error,expected", [
+    (2, AgentAPIError("agent 接口返回 404: group not found", status_code=404), "active"),
+    (None, None, "active"),
+    (2, None, "active"),
+    (2, AgentAPIError("unauthorized", status_code=401), "failed"),
+    (2, AgentAPIError("timed out"), "failed"),
+    (2, AgentAPIError("route not found", status_code=404), "failed"),
+])
+async def test_optional_text_key_does_not_block_image_initialization(monkeypatch, text_group, error, expected):
+    config = SimpleNamespace(is_enabled=True, text_group_id=text_group, image_group_id=36)
+    user = SimpleNamespace(id=58, site_id=1)
+    account = UserAgentAccount(user_id=58, team_id=28, agent_user_id=74,
+                               agent_email="test@example.test", agent_password="password", status="failed")
+    class DB:
+        def __init__(self):
+            self.values = iter([config, user, 0])
+        async def scalar(self, query):
+            return next(self.values)
+        async def flush(self):
+            pass
+    class Client:
+        def login_user(self, **kwargs):
+            return "token"
+        def list_user_api_keys(self, user_id):
+            return []
+    async def account_row(*args, **kwargs):
+        return account
+    async def billing(*args, **kwargs):
+        return SimpleNamespace(id=28, owner_user_id=58)
+    async def noop(*args, **kwargs):
+        pass
+    calls = []
+    async def key(*args, **kwargs):
+        calls.append(kwargs["kind"])
+        if kwargs["kind"] == "text" and error:
+            raise error
+        return AgentAPIKey(id=101 if kwargs["kind"] == "text" else 102, key=kwargs["kind"])
+    monkeypatch.setattr(agent_provisioning, "AgentOpenAPIClient", lambda config: Client())
+    monkeypatch.setattr(agent_provisioning, "get_agent_billing_team", billing)
+    monkeypatch.setattr(agent_provisioning, "_account_row", account_row)
+    monkeypatch.setattr(agent_provisioning, "_ensure_wallet", account_row)
+    for name in ("_legacy_account", "_sync_configured_allowed_groups", "_migrate_legacy_custom_keys", "_delete_legacy_keys"):
+        monkeypatch.setattr(agent_provisioning, name, noop)
+    monkeypatch.setattr(agent_provisioning, "_ensure_default_key", key)
+    result = await sync_agent_account(DB(), user)
+    assert result.status == expected
+    if expected == "active":
+        assert result.image_api_key == "image"
+        assert result.text_api_key == ("text" if text_group and not error else None)
+        assert not agent_account_requires_sync(result, 28)
+        assert calls[-1] == "image"
+    else:
+        assert calls == ["text"]
+        assert result.failure_message == str(error)
+
+
+async def test_opencode_login_accepts_image_only_account(monkeypatch):
+    from app.api.routes import opencode
+    from app.schemas.auth import LoginRequest
+    account = UserAgentAccount(status="active", agent_user_id=74, team_id=28, image_api_key="image")
+    async def yes(*args):
+        return True
+    async def site(*args):
+        return 1
+    async def user(*args):
+        return SimpleNamespace(id=58, site_id=1)
+    async def config(*args):
+        return SimpleNamespace()
+    async def team(*args):
+        return SimpleNamespace(id=28)
+    class DB:
+        async def scalar(self, query):
+            return account
+    monkeypatch.setattr(opencode, "login_rate_limit_key", yes)
+    monkeypatch.setattr(opencode, "current_site_id", site)
+    monkeypatch.setattr(opencode, "authenticate_user_for_opencode", user)
+    monkeypatch.setattr(opencode, "get_config", config)
+    monkeypatch.setattr(opencode, "get_agent_billing_team", team)
+    result = await opencode.opencode_login(LoginRequest(username="alice", password="password"),
+                                           SimpleNamespace(client=None), DB())
+    assert result.data.status == "active"
+    assert result.data.text_api_key is None
+    assert result.data.image_api_key == "image"

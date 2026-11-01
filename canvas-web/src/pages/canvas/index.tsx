@@ -1,3 +1,4 @@
+import { CanvasLoading } from "@/components/canvas/canvas-loading";
 import { hydrateCanvasImages } from "@/lib/canvas/canvas-generation-helpers";
 import { useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -91,7 +92,7 @@ export default function CanvasPage() {
         enterProject(mode === "new" ? createProject(t("canvas.defaultTitle", { count: projects.length + 1 })) : projects[0]?.id || createProject(t("canvas.defaultTitle", { count: projects.length + 1 })));
     }, [createProject, hydrated, mode, projects, t]);
 
-    if (hydrated && (mode === "new" || mode === "recent")) return <main className="flex h-full items-center justify-center bg-background text-sm text-stone-500">{t("canvas.opening")}</main>;
+    if (hydrated && (mode === "new" || mode === "recent")) return <main className="flex h-full items-center justify-center bg-background text-sm text-stone-500"><CanvasLoading label={t("canvas.opening")} hint={t("canvas.loadingHint")} /></main>;
 
     return (
         <main className="h-full overflow-auto bg-background text-stone-950 dark:text-stone-100">
@@ -128,7 +129,7 @@ export default function CanvasPage() {
                 {hasMore && <Button onClick={() => void useCanvasStore.getState().loadMore().catch((error) => message.error(error.message))}>加载更多画布</Button>}
 
                 {!hydrated ? (
-                    <section className="flex min-h-[360px] items-center justify-center border-y border-stone-200 text-sm text-stone-500 dark:border-stone-800">{t("canvas.loading")}</section>
+                    <CanvasLoading label={t("canvas.loading")} hint={t("canvas.loadingHint")} />
                 ) : projects.length ? (
                     <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                         {projects.map((project) => (

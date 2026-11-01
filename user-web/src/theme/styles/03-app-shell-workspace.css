@@ -568,6 +568,14 @@
   grid-template-columns: minmax(180px, 1.45fr) minmax(120px, 0.8fr) minmax(120px, 0.8fr);
 }
 
+.config-row--without-quality {
+  grid-template-columns: minmax(180px, 1.45fr) minmax(120px, 0.8fr);
+}
+
+.config-row--without-quality .config-field--aspect {
+  grid-column: 1 / -1;
+}
+
 .config-row--without-resolution {
   grid-template-columns: 1fr;
 }

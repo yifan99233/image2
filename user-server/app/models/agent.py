@@ -1,5 +1,7 @@
 from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
 
+from sqlalchemy.dialects.postgresql import JSONB
+
 from app.db.base import Base
 from app.db.encrypted_credentials import EncryptedCredential
 
@@ -16,6 +18,7 @@ class AgentConfig(Base):
     credit_to_agent_rate = Column(Numeric(12, 4), nullable=False, default=1, server_default="1")
     text_group_id = Column(BigInteger())
     image_group_id = Column(BigInteger())
+    key_group_whitelist = Column(JSONB, nullable=False, default=list, server_default="[]")
     create_api_key_path = Column(String(255), nullable=False, default="", server_default="")
     user_concurrency = Column(Integer, nullable=False, default=0, server_default="0")
     user_rpm_limit = Column(Integer, nullable=False, default=0, server_default="0")

@@ -1,6 +1,7 @@
+import { LoadingIndicator } from "@/components/ui/LoadingIndicator";
 import { RedeemCredits } from "@/components/RedeemCredits";
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, Coins, Loader2, QrCode } from "lucide-react";
+import { CheckCircle2, Coins, QrCode } from "lucide-react";
 import QRCode from "qrcode";
 import { Button } from "@/components/ui/Button";
 import { rechargeService } from "@/services/recharge";
@@ -158,7 +159,7 @@ export const RechargePage = () => {
             </div>
           </div>
           <Button type="button" disabled={!selectedPlan || isCreating || isPolling || order?.status === "paid"} onClick={createOrder}>
-            {isCreating || isPolling ? <Loader2 className="spin-icon" size={17} /> : <Coins size={17} />}
+            {isCreating || isPolling ? <LoadingIndicator className="spin-icon" size={17} /> : <Coins size={17} />}
             {order?.status === "paid" ? "已到账" : order ? "支付状态确认中" : "立即充值"}
           </Button>
           {order ? (

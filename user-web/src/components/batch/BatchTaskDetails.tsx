@@ -1,3 +1,4 @@
+import { LoadingState } from "@/components/ui/LoadingState";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { imageTaskService } from "@/services/imageTasks";
 import type { ImageTask } from "@/types/api";
@@ -113,7 +114,7 @@ export function BatchTaskDetails({
         </p>
       ) : null}
       {loading ? (
-        <p role="status">正在加载批次记录…</p>
+        <LoadingState label="正在加载批次记录…" />
       ) : !records.length && !error ? (
         <p>暂无可见记录</p>
       ) : null}

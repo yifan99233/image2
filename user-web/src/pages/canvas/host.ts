@@ -67,7 +67,7 @@ export function createCanvasHost() {
     },
     async "generation.quote"(input) {
       validateGeneration(input);
-      return modelService.quote(input.modelId, input.references.length ? "image_edit" : "text_to_image", input.resolution, input.aspectRatio, input.count);
+      return modelService.quote(input.modelId, input.references.length ? "image_edit" : "text_to_image", input.resolution, input.aspectRatio, input.count, undefined, input.quality);
     },
     async "generation.create"(input) {
       validateGeneration(input);

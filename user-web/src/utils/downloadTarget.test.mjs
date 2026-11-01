@@ -1,94 +1,40 @@
-import assert from "node:assert/strict";
-import { Blob } from "node:buffer";
-import test from "node:test";
-
-const { fetchDownloadBlob, planDownloadTarget } = await import("./downloadTarget.ts");
-
-const PAGE_HREF = "https://magic.shyfai.com/create/imagine";
-const PAGE_ORIGIN = "https://magic.shyfai.com";
-const CDN_URL = "https://openagent-cdn.shyfai.cn/image2-assets/generated/20/example.png";
-
-test("keeps a same-origin asset eligible for a direct browser download", () => {
-  const target = planDownloadTarget(
-    "https://magic.shyfai.com/image2-assets/generated/20/example.png",
-    PAGE_HREF,
-    PAGE_ORIGIN,
-  );
-
-  assert.equal(target.canDownloadDirectly, true);
-  assert.equal(target.url, "https://magic.shyfai.com/image2-assets/generated/20/example.png");
-  assert.equal(target.fallbackUrl, undefined);
+import assert from 'node:assert/strict';
+import test from 'node:test';
+const { planDownloadTarget, fetchDownloadBlob } = await import('./downloadTarget.ts');
+const origin = 'https://magic.shyfai.com', page = origin + '/create/imagine';
+test('same-origin assets use the native direct link', () => {
+  assert.deepEqual(planDownloadTarget(origin + '/image2-assets/test.png', page, origin), { url: origin + '/image2-assets/test.png', canDownloadDirectly: true });
+});
+test('legacy shared assets are normalized to the current origin', () => {
+  assert.deepEqual(planDownloadTarget('https://magic-old.shyfai.com/image2-assets/test.png?v=1', page, origin), { url: origin + '/image2-assets/test.png?v=1', canDownloadDirectly: true });
+});
+test('external shared CDN keeps its URL and legacy fallback', () => {
+  const url = 'https://openagent-cdn.shyfai.cn/image2-assets/test.png?v=1';
+  assert.deepEqual(planDownloadTarget(url, page, origin), { url, canDownloadDirectly: false, fallbackUrl: origin + '/image2-assets/test.png?v=1' });
+});
+test('ADX2 CDN stays direct to its original host, never a Magic relay', () => {
+  const url = 'https://oss-test.fycsai.com/magic/images/task/0.png';
+  assert.deepEqual(planDownloadTarget(url, page, origin), { url, canDownloadDirectly: false });
+});
+test('data and blob media need no remote download worker', () => {
+  for (const url of ['data:image/png;base64,aGVsbG8=', 'blob:' + origin + '/1234']) assert.equal(planDownloadTarget(url, page, origin).canDownloadDirectly, true);
 });
 
-test("preserves an external CDN URL instead of rewriting it to the current origin", () => {
-  const target = planDownloadTarget(CDN_URL, PAGE_HREF, PAGE_ORIGIN);
 
-  assert.equal(target.canDownloadDirectly, false);
-  assert.equal(target.url, CDN_URL);
-  assert.equal(
-    target.fallbackUrl,
-    "https://magic.shyfai.com/image2-assets/generated/20/example.png",
-  );
-});
-
-test("downloads from the external CDN when it permits cross-origin reads", async () => {
-  const target = planDownloadTarget(CDN_URL, PAGE_HREF, PAGE_ORIGIN);
-  const expected = new Blob(["cdn-image"], { type: "image/png" });
-  const requestedUrls = [];
-
-  const blob = await fetchDownloadBlob(target, async (url) => {
-    requestedUrls.push(url);
-    return { ok: true, blob: async () => expected };
+test('cutout reads fresh CORS bytes without reusing the preview cache', async () => {
+  const calls = [], blob = new Blob(['mask'], {type: 'image/png'});
+  const result = await fetchDownloadBlob({url: 'https://cdn.test/mask.png', canDownloadDirectly: false}, async (url, options) => {
+    calls.push({url, options}); return {ok: true, blob: async () => blob};
   });
-
-  assert.equal(blob, expected);
-  assert.deepEqual(requestedUrls, [CDN_URL]);
+  assert.equal(result, blob);
+  assert.deepEqual(calls, [{url: 'https://cdn.test/mask.png', options: {mode: 'cors', credentials: 'omit', cache: 'no-store'}}]);
 });
-
-test("canonicalizes legacy asset hosts to the same-origin proxy before downloading", async () => {
-  const target = planDownloadTarget(
-    "https://magic-old.shyfai.com/image2-assets/generated/20/example.png",
-    PAGE_HREF,
-    PAGE_ORIGIN,
-  );
-  const expected = new Blob(["legacy-image"], { type: "image/png" });
-  const requestedUrls = [];
-  assert.equal(target.canDownloadDirectly, true);
-  assert.equal(target.fallbackUrl, undefined);
-
-  const blob = await fetchDownloadBlob(target, async (url) => {
-    requestedUrls.push(url);
-    if (url.startsWith("https://magic-old.shyfai.com")) throw new Error("CORS");
-    return { ok: true, blob: async () => expected };
-  });
-
-  assert.equal(blob, expected);
-  assert.deepEqual(requestedUrls, [
-    "https://magic.shyfai.com/image2-assets/generated/20/example.png",
-  ]);
-});
-
-test("falls back from an unavailable CDN to the same-origin asset proxy", async () => {
-  const target = planDownloadTarget(`${CDN_URL}?v=1`, PAGE_HREF, PAGE_ORIGIN);
-  const expected = new Blob(["origin-image"], { type: "image/png" });
-  const requestedUrls = [];
-  const blob = await fetchDownloadBlob(target, async (url) => {
-    requestedUrls.push(url);
-    if (url.startsWith("https://openagent-cdn.shyfai.cn")) throw new Error("CORS");
-    return { ok: true, blob: async () => expected };
-  });
-  assert.equal(blob, expected);
-  assert.deepEqual(requestedUrls, [
-    `${CDN_URL}?v=1`,
-    "https://magic.shyfai.com/image2-assets/generated/20/example.png?v=1",
-  ]);
-});
-
-test("reports a download failure after both sources fail", async () => {
-  const target = planDownloadTarget(CDN_URL, PAGE_HREF, PAGE_ORIGIN);
-
-  await assert.rejects(
-    () => fetchDownloadBlob(target, async () => ({ ok: false, blob: async () => new Blob() })),
-    /媒体下载失败，请稍后重试/,
-  );
+test('cutout falls back after a failed body read and reports total download failure', async () => {
+  const target = {url: 'https://cdn.test/mask.png', fallbackUrl: origin + '/image2-assets/mask.png', canDownloadDirectly: false};
+  const calls = [], blob = new Blob(['mask']);
+  assert.equal(await fetchDownloadBlob(target, async url => {
+    calls.push(url); return {ok: true, blob: async () => {if (url === target.url) throw new Error('read failed'); return blob;}};
+  }), blob);
+  assert.deepEqual(calls, [target.url, target.fallbackUrl]);
+  await assert.rejects(fetchDownloadBlob(target, async () => ({ok: false})), /媒体下载失败/);
 });

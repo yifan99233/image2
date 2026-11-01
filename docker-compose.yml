@@ -63,6 +63,9 @@ services:
     environment:
       ENVIRONMENT: production
       DEBUG: "false"
+      IMAGE_RETENTION_ENABLED: ${IMAGE_RETENTION_ENABLED:-false}
+      IMAGE_RETENTION_BATCH_SIZE: ${IMAGE_RETENTION_BATCH_SIZE:-500}
+      IMAGE_RETENTION_INTERVAL_SECONDS: ${IMAGE_RETENTION_INTERVAL_SECONDS:-60}
       DATABASE_URL: ${USER_DATABASE_URL:-postgresql+asyncpg://image2:image2_dev_password@postgres:5432/image2}
       REDIS_URL: ${USER_REDIS_URL:-redis://redis:6379/0}
       CORS_ORIGINS: ${USER_CORS_ORIGINS:-https://magic.shyfai.cn,https://shyfai.cn}

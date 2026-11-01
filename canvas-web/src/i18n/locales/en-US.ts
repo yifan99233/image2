@@ -221,6 +221,7 @@ export default {
         imported: "Imported {{count}} canvases",
         importFailed: "Import failed. Select a valid canvas package.",
         opening: "Opening canvas...",
+        loadingHint: "Making room for your ideas",
         loading: "Loading canvases...",
         exportSelected: "Export selected",
         deleteSelected: "Delete selected",

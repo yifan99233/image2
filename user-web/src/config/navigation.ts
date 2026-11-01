@@ -1,20 +1,6 @@
-import {
-  GalleryHorizontalEnd,
-  Frame,
-  Home,
-  Image,
-  Images,
-  Layers3,
-  Library,
-  Activity,
-  ContactRound,
-  Download,
-  Clapperboard,
-  Film,
-  KeyRound,
-  Sparkles,
-  Wand2,
-} from "lucide-react";
+import { Scissors } from "lucide-react";
+import { GalleryHorizontalEnd, Frame, Home, Image, Images, Layers3, Library, ContactRound, Clapperboard, Film, Sparkles, Wand2 } from "@/components/ui/StudioIcons";
+import { Activity, KeyRound } from "lucide-react";
 import type { NavigationGroup } from "@/types/navigation";
 
 export const navigationGroups: NavigationGroup[] = [
@@ -31,6 +17,7 @@ export const navigationGroups: NavigationGroup[] = [
       { label: "画布", path: "/create/canvas", icon: Frame, moduleKey: "text_to_image" },
       { label: "Imagine Agent", path: "/create/imagine", icon: Sparkles, moduleKey: "text_to_image" },
       { label: "图生图", path: "/create/edit", icon: Wand2, moduleKey: "image_edit" },
+      { label: "抠图去背景", path: "/create/cutout", icon: Scissors, moduleKey: "image_edit" },
       { label: "文生图", path: "/create/text-to-image", icon: Image, moduleKey: "text_to_image" },
       { label: "批量生图", path: "/create/batch-generate", icon: Images, moduleKey: "batch_generate" },
       { label: "批量改图", path: "/create/batch-edit", icon: Layers3, moduleKey: "batch_edit" },
@@ -56,7 +43,6 @@ export const navigationGroups: NavigationGroup[] = [
     label: "Codex定制版",
     moduleKey: "opencode",
     items: [
-      { label: "下载安装", path: "/opencode/install", icon: Download },
       { label: "Key 管理", path: "/opencode/keys", icon: KeyRound },
       { label: "Codex定制版使用记录", path: "/opencode/usage", icon: Activity },
     ],

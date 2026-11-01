@@ -57,3 +57,13 @@ test('surcharge-only changes retain base price and allow resetting the fee to ze
   assert.equal(changedModelPriceEntries({ [key]: '10' }, { [key]: '10' }, { [key]: '0' }, { [key]: '2.5' })[0].fixed_surcharge, 0);
   assert.deepEqual(changedModelPriceEntries({ [key]: '10' }, { [key]: '10' }, { [key]: '2.50' }, { [key]: '2.5' }), []);
 });
+
+
+test("quality tabs keep independent price matrices", () => {
+  const prices = [basePrice, {...basePrice, id: 2, quality: "low", credit_cost: 3}, {...basePrice, id: 3, quality: "high", credit_cost: 6}];
+  const key = modelPriceCellKey("text_to_image", "4k", "16:9");
+  assert.equal(activePriceCellValues(prices, 1)[key], "24");
+  assert.equal(activePriceCellValues(prices, 1, "low")[key], "3");
+  assert.equal(activePriceCellValues(prices, 1, "high")[key], "6");
+  assert.deepEqual(activePriceCellValues(prices, 1, "medium"), {});
+});

@@ -765,7 +765,7 @@ export function ModelPricesPage() {
           <table>
             <thead>
               <tr>
-                <th>选择</th><th>模型</th><th>能力</th><th>规格</th><th>基础价格</th><th>固定加价</th><th>版本</th><th>原因</th><th>状态</th><th>操作</th>
+                <th>选择</th><th>模型</th><th>能力</th><th>规格</th><th>质量</th><th>基础价格</th><th>固定加价</th><th>版本</th><th>原因</th><th>状态</th><th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -781,6 +781,7 @@ export function ModelPricesPage() {
                     <td>{price.model_name}</td>
                     <td>{formatPriceAbility(price.work_type)}</td>
                     <td>{formatPriceSpec(price, models.find((model) => model.id === price.model_id))}</td>
+                    <td>{{ any: "通用", low: "低", medium: "中（含自动）", high: "高" }[price.quality ?? "any"]}</td>
                     <td>{price.credit_cost}</td><td>{price.fixed_surcharge ?? 0}</td>
                     <td>v{price.version}</td>
                     <td>{price.change_reason}</td>

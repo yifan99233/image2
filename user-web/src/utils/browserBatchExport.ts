@@ -33,7 +33,8 @@ async function fetchImage(item: ExportItem, maxBytes: number, signal: AbortSigna
     let retryable = true;
     try {
       // No application auth headers, cookies, or server download proxy on CDN requests.
-      const response = await fetcher(url.href, { signal: combined, credentials: "omit", mode: "cors" });
+      // Skip non-CORS preview responses already present in the browser cache.
+      const response = await fetcher(url.href, { signal: combined, credentials: "omit", mode: "cors", cache: "no-store" });
       if (!response.ok) {
         retryable = [408, 429].includes(response.status) || response.status >= 500;
         await response.body?.cancel();

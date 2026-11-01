@@ -21,6 +21,7 @@ class ModelPrice(Base):
     resolution: Mapped[str] = mapped_column(String(64), nullable=False)
     aspect_ratio: Mapped[str] = mapped_column(String(32), nullable=False)
     output_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    quality: Mapped[str] = mapped_column(String(16), nullable=False, default="any", server_default="any")
     credit_cost: Mapped[int] = mapped_column(Integer, nullable=False)
     fixed_surcharge: Mapped[Decimal] = mapped_column(Numeric(20, 2), nullable=False, default=0, server_default="0")
     version: Mapped[int] = mapped_column(Integer, nullable=False)

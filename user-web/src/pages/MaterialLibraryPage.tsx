@@ -1,5 +1,6 @@
+import { LoadingState } from "@/components/ui/LoadingState";
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, Folder, FolderOpen, HardDrive, ImagePlus, Loader2, Pencil, Plus, Search, UploadCloud, X, Zap } from "lucide-react";
+import { ChevronLeft, Folder, FolderOpen, HardDrive, ImagePlus, Pencil, Plus, Search, UploadCloud, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { materialService, type MaterialUploadMode } from "@/services/materials";
 import type { MaterialAsset, MaterialFolder } from "@/types/api";
@@ -308,7 +309,7 @@ export function MaterialLibraryPage() {
 
           {error ? <div className="list-state list-state--error">{error}</div> : null}
           {isLoading ? (
-            <div className="empty-state"><Loader2 className="spin-icon" size={30} /><p>正在加载素材库</p></div>
+            <LoadingState label="正在加载素材库…" variant="cards" />
           ) : (
             <>
               {folders.length && !deferredKeyword ? (

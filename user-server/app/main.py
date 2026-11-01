@@ -16,6 +16,8 @@ from app.services.image_batch_uploads import batch_upload_worker_loop
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app.services.image_retention import retention_loop
+    retention_task = asyncio.create_task(retention_loop()) if settings.image_retention_enabled else None
     reaper_task: asyncio.Task | None = None
     dispatcher_task: asyncio.Task | None = None
     upload_worker_task: asyncio.Task | None = None
@@ -27,6 +29,9 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        if retention_task is not None:
+            retention_task.cancel()
+            await asyncio.gather(retention_task, return_exceptions=True)
         if upload_worker_task is not None:
             upload_worker_task.cancel()
             await asyncio.gather(upload_worker_task, return_exceptions=True)

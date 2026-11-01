@@ -755,6 +755,7 @@ async def _save_uploaded_content(
     submitted_mime_type: str,
     hot_url: str | None = None,
     local_backup_only: bool = False,
+    model_cdn=None,
     qiniu_storage_enabled: bool | None = None,
 ) -> ImageAsset:
     from app.api.routes.ux import get_qiniu_storage_enabled
@@ -768,7 +769,13 @@ async def _save_uploaded_content(
     digest = hashlib.sha256(content).hexdigest()
     relative_dir = Path("images") / str(current_user.id)
     filename = f"{uuid.uuid4().hex}{extension}"
-    if local_backup_only:
+    if model_cdn is not None:
+        from app.services.model_cdn import store_reference
+        storage_key = f"{model_cdn.key_prefix}/inputs/{current_user.id}/{filename}"
+        url = await asyncio.to_thread(store_reference, config=model_cdn, content=content,
+                                     storage_key=storage_key, mime_type=metadata.mime_type)
+        local_url = None
+    elif local_backup_only:
         storage_key = _local_storage_key(relative_dir, filename)
         url = await asyncio.to_thread(
             _store_local_image,
@@ -847,6 +854,7 @@ async def save_uploaded_image(
     db: AsyncSession,
     current_user: User,
     upload: UploadFile,
+    model_cdn=None,
     qiniu_storage_enabled: bool | None = None,
 ) -> ImageAsset:
     content = await upload.read()
@@ -854,6 +862,7 @@ async def save_uploaded_image(
         db=db,
         current_user=current_user,
         content=content,
+        model_cdn=model_cdn,
         original_filename=upload.filename or "",
         submitted_mime_type=upload.content_type or "",
         qiniu_storage_enabled=qiniu_storage_enabled,

@@ -79,15 +79,14 @@ async def test_origin_alias_accepts_historic_com_record_without_changing_stored_
     assert resolved == [edge]
 
 
-async def test_missing_image_still_rejected_even_with_valid_input_id():
+async def test_owned_input_id_takes_precedence_over_stale_submitted_url():
     origin = "https://magic.shyfai.cn/image2-assets/images/19/owned.png"
     with asset_session([{"id": 1, "site_id": 1, "user_id": 19, "url": origin}]) as db:
-        with pytest.raises(BusinessError) as error:
-            await resolve_input_image_urls(
-                db, site_id=1, user_id=19, max_input_images=4,
-                payload={"input_image_ids": [1], "input_image_urls": ["https://magic.shyfai.com/image2-assets/images/19/missing.png"]},
-            )
-    assert error.value.code == 40420
+        resolved = await resolve_input_image_urls(
+            db, site_id=1, user_id=19, max_input_images=4,
+            payload={"input_image_ids": [1], "input_image_urls": ["https://magic.shyfai.com/image2-assets/images/19/missing.png"]},
+        )
+    assert resolved == [origin]
 
 
 @pytest.mark.parametrize("url", [

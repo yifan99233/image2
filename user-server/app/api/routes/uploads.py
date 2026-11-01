@@ -87,7 +87,10 @@ async def upload_image(
         elif storage_mode == "local":
             qiniu_storage_enabled = False
 
+    from app.services.model_cdn import for_model
+    cdn = for_model(current_user.site_id, model_id) if model_id is not None else None
     asset = await save_uploaded_image(
+        model_cdn=cdn,
         db=db,
         current_user=current_user,
         upload=image,

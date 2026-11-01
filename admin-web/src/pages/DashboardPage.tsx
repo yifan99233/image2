@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { formatCurrency, formatDateTime } from "../lib/format";
 import { getDashboard } from "../services/adminApi";
+import { DashboardAnalytics } from "./dashboard/DashboardAnalytics";
 import type { DashboardData } from "../types";
 
 export function DashboardPage() {
@@ -58,6 +59,7 @@ export function DashboardPage() {
 
   return (
     <div className="dashboard-grid">
+      <DashboardAnalytics />
       <section className="metric-grid">
         {data.metrics.map((metric) => (
           <article className={`metric-card ${metric.tone}`} key={metric.key}>

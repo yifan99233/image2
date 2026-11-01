@@ -14,10 +14,10 @@ export function modelPriceCellKey(workType: string, resolution: string, aspectRa
   return JSON.stringify([workType, resolution, aspectRatio]);
 }
 
-export function activePriceCellValues(prices: ModelPrice[], outputCount: number): PriceCellValues {
+export function activePriceCellValues(prices: ModelPrice[], outputCount: number, quality = "any"): PriceCellValues {
   const values: PriceCellValues = {};
   for (const price of prices) {
-    if (!price.is_active || price.output_count !== outputCount) continue;
+    if (!price.is_active || price.output_count !== outputCount || (price.quality ?? "any") !== quality) continue;
     const key = modelPriceCellKey(price.work_type, price.resolution, price.aspect_ratio);
     if (values[key] === undefined) values[key] = String(price.credit_cost);
   }

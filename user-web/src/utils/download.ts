@@ -1,5 +1,6 @@
 import { resolveAssetUrl } from "@/utils/assets";
-import { fetchDownloadBlob, planDownloadTarget } from "@/utils/downloadTarget";
+import { planDownloadTarget } from "@/utils/downloadTarget";
+import { streamBrowserDownload } from "@/utils/streamingDownload";
 
 const extensionByMime: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -30,8 +31,7 @@ const resolveDownloadTarget = (url: string) => {
 export const downloadMedia = async (url: string, fileName: string, mimeType?: string) => {
   const target = resolveDownloadTarget(url);
   if (!target.canDownloadDirectly) {
-    const blob = await fetchDownloadBlob(target);
-    downloadBlob(blob, withMediaExtension(fileName, blob.type || mimeType));
+    await streamBrowserDownload(target, withMediaExtension(fileName, mimeType));
     return;
   }
 

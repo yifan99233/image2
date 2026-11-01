@@ -554,6 +554,7 @@ export function AgentPage() {
     credit_to_agent_rate: 1,
     text_group_id: null,
     image_group_id: null,
+    key_group_whitelist: [],
     create_api_key_path: "",
     user_concurrency: 5,
     user_rpm_limit: 0,
@@ -594,6 +595,7 @@ export function AgentPage() {
       credit_to_agent_rate: nextConfig.credit_to_agent_rate,
       text_group_id: nextConfig.text_group_id ?? null,
       image_group_id: nextConfig.image_group_id ?? null,
+      key_group_whitelist: nextConfig.key_group_whitelist ?? [],
       create_api_key_path: "",
       user_concurrency: nextConfig.user_concurrency ?? 5,
       user_rpm_limit: nextConfig.user_rpm_limit,
@@ -632,7 +634,7 @@ export function AgentPage() {
     try {
       const nextConfig = await saveAgentConfig(form);
       setConfig(nextConfig);
-      setForm((current) => ({ ...current, admin_api_key: "" }));
+      setForm((current) => ({ ...current, admin_api_key: "", key_group_whitelist: nextConfig.key_group_whitelist ?? [] }));
       setNotice("Agent 配置已保存");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Agent 配置保存失败");
@@ -683,6 +685,30 @@ export function AgentPage() {
               </select>
             </label>
           </div>
+          <fieldset className="agent-key-whitelist">
+            <legend>Key 分组白名单</legend>
+            <p className="muted">用户创建 Key 时可选择以下分组。文本和图片默认分组自动加入白名单。</p>
+            <div className="agent-key-whitelist__groups">
+              {[...groups, ...[form.text_group_id, form.image_group_id, ...(form.key_group_whitelist ?? [])]
+                .filter((id): id is number => Boolean(id) && !groups.some((group) => group.id === id))
+                .filter((id, index, ids) => ids.indexOf(id) === index)
+                .map((id) => ({ id, name: `已保存分组 ID ${id}`, platform: "", is_active: false }))]
+                .map((group) => {
+                  const isDefault = group.id === form.text_group_id || group.id === form.image_group_id;
+                  const checked = isDefault || (form.key_group_whitelist ?? []).includes(group.id);
+                  return <label key={group.id} className={`agent-key-whitelist__option${isDefault ? " is-default" : ""}`}>
+                    <input type="checkbox" checked={checked} disabled={isDefault || isLoadingGroups || (!group.is_active && !checked)}
+                      onChange={(event) => setForm((current) => ({ ...current, key_group_whitelist: event.target.checked
+                        ? [...new Set([...(current.key_group_whitelist ?? []), group.id])]
+                        : (current.key_group_whitelist ?? []).filter((id) => id !== group.id) }))} />
+                    <span><strong>{group.name}</strong><small>ID {group.id}{group.platform ? ` · ${group.platform}` : ""}{!group.is_active ? " · 当前不可用" : ""}</small></span>
+                    {isDefault ? <span className="agent-key-whitelist__badge">默认加入</span> : null}
+                  </label>;
+                })}
+            </div>
+            {!groups.length && !form.text_group_id && !form.image_group_id && !form.key_group_whitelist?.length
+              ? <p className="muted">先查询分组，再选择允许用户创建 Key 的分组。</p> : null}
+          </fieldset>
           <div className="inline-state"><ClipboardCheck size={17} /><span>当前 Key：{config?.admin_api_key_masked || "未配置"}；更新时间：{config?.updated_at ? formatDateTime(config.updated_at) : "-"}</span></div>
           {error && config ? <div className="form-error">{error}</div> : null}
           {notice ? <section className="inline-result"><CheckCircle2 size={17} />{notice}</section> : null}

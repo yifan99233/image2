@@ -17,6 +17,7 @@ from decimal import Decimal, InvalidOperation
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import BigInteger, Boolean, Column, Date, DateTime, Integer, MetaData, Numeric, String, Table, Text, and_, delete, desc, func, insert, or_, outerjoin, select, text, update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -489,6 +490,7 @@ agent_configs_table = Table(
     Column("credit_to_agent_rate", Numeric(12, 4)),
     Column("text_group_id", BigInteger),
     Column("image_group_id", BigInteger),
+    Column("key_group_whitelist", JSONB),
     Column("create_api_key_path", String),
     Column("user_concurrency", Integer),
     Column("user_rpm_limit", Integer),
@@ -723,6 +725,7 @@ def default_agent_config() -> dict:
         "credit_to_agent_rate": 1,
         "text_group_id": None,
         "image_group_id": None,
+        "key_group_whitelist": [],
         "create_api_key_path": "",
         "user_concurrency": 5,
         "user_rpm_limit": 0,
@@ -1015,6 +1018,7 @@ def agent_config_out(row) -> dict:
         "credit_to_agent_rate": float(get_value("credit_to_agent_rate") or 1),
         "text_group_id": get_value("text_group_id"),
         "image_group_id": get_value("image_group_id"),
+        "key_group_whitelist": get_value("key_group_whitelist") or [],
         "create_api_key_path": get_value("create_api_key_path") or "",
         "user_concurrency": int(get_value("user_concurrency") or defaults["user_concurrency"]),
         "user_rpm_limit": int(get_value("user_rpm_limit") or 0),
@@ -3238,6 +3242,14 @@ async def update_zpay_config(
     return ApiResponse.ok(zpay_config_out(row.mappings().first()))
 
 
+def normalize_key_group_whitelist(value) -> list[int]:
+    if not isinstance(value, list) or len(value) > 200:
+        raise AppException(code=40001, message="Key 分组白名单必须是最多 200 项的分组列表")
+    if any(type(item) is not int or item <= 0 or item > 2**53 - 1 for item in value):
+        raise AppException(code=40001, message="白名单分组 ID 必须是正整数")
+    return sorted(set(value))
+
+
 @router.patch("/agent/config", response_model=ApiResponse[dict])
 async def update_agent_config(
     payload: dict,
@@ -3278,6 +3290,21 @@ async def update_agent_config(
             "updated_by": current_admin.id,
             "updated_at": func.now(),
         }
+        # Missing field from an older client preserves the existing allowlist.
+        target_changed = base_url != str((existing or {}).get("base_url") or "").rstrip("/")
+        if "key_group_whitelist" in payload or (target_changed and (existing or {}).get("key_group_whitelist")):
+            extra_ids = normalize_key_group_whitelist(payload.get("key_group_whitelist", (existing or {}).get("key_group_whitelist", [])))
+            defaults = {values["text_group_id"], values["image_group_id"]}
+            extra_ids = [group_id for group_id in extra_ids if group_id not in defaults]
+            previous = set((existing or {}).get("key_group_whitelist") or [])
+            additions = set(extra_ids) if target_changed else set(extra_ids) - previous
+            if additions:
+                group_base, group_key = resolve_agent_group_credentials(base_url, admin_api_key, existing)
+                available = await asyncio.to_thread(fetch_agent_groups, group_base, group_key)
+                if additions - {int(group["id"]) for group in available if group.get("is_active", True)}:
+                    raise AppException(code=40001, message="白名单包含不可用分组，请重新查询分组")
+            values["key_group_whitelist"] = extra_ids
+
         if admin_api_key:
             values["admin_api_key"] = admin_api_key
         elif existing is None:
@@ -5134,6 +5161,7 @@ async def model_prices(
                 "aspect_ratio": price.aspect_ratio,
                 "output_count": price.output_count,
                 "credit_cost": price.credit_cost,
+                "quality": price.quality,
                 "fixed_surcharge": price.fixed_surcharge,
                 "version": price.version,
                 "effective_at": iso(price.effective_at),
@@ -5157,6 +5185,13 @@ def parse_surcharge(value):
         raise AppException(code=40001, message="固定加价须为 0 至 1 亿之间的数字，最多两位小数") from exc
 
 
+def parse_price_quality(value):
+    quality = str(value or "any").strip().lower()
+    if quality not in {"any", "low", "medium", "high"}:
+        raise AppException(code=40001, message="价格质量仅支持通用、低、中、高；自动使用中档")
+    return quality
+
+
 def explicit_model_price_entries(payload: dict, output_count: int) -> list[dict] | None:
     raw_entries = payload.get("price_entries")
     if raw_entries is None:
@@ -5165,7 +5200,7 @@ def explicit_model_price_entries(payload: dict, output_count: int) -> list[dict]
         raise AppException(code=40001, message="请至少提交一个价格变更")
 
     entries: list[dict] = []
-    seen_keys: set[tuple[str, str, str, int]] = set()
+    seen_keys: set[tuple[str, str, str, int, str]] = set()
     for raw_entry in raw_entries:
         if not isinstance(raw_entry, dict):
             raise AppException(code=40001, message="价格变更格式不正确")
@@ -5185,7 +5220,8 @@ def explicit_model_price_entries(payload: dict, output_count: int) -> list[dict]
             raise AppException(code=40001, message="价格变更缺少能力或规格")
         if credit_cost <= 0:
             raise AppException(code=40001, message="积分消耗必须大于 0")
-        key = (work_type, resolution, aspect_ratio, output_count)
+        quality = parse_price_quality(raw_entry.get("quality", payload.get("quality")))
+        key = (work_type, resolution, aspect_ratio, output_count, quality)
         if key in seen_keys:
             raise AppException(code=40001, message=f"价格变更包含重复规格：{work_type} / {resolution} / {aspect_ratio}")
         seen_keys.add(key)
@@ -5196,6 +5232,7 @@ def explicit_model_price_entries(payload: dict, output_count: int) -> list[dict]
                 "aspect_ratio": aspect_ratio,
                 "output_count": output_count,
                 "credit_cost": credit_cost,
+                "quality": quality,
                 **({"fixed_surcharge": parse_surcharge(raw_entry["fixed_surcharge"])} if "fixed_surcharge" in raw_entry else {}),
             }
         )
@@ -5210,6 +5247,7 @@ def model_price_identity_condition(
     resolution: str,
     aspect_ratio: str,
     output_count: int,
+    quality: str = "any",
 ):
     return and_(
         ModelPrice.site_id == site_id,
@@ -5218,6 +5256,7 @@ def model_price_identity_condition(
         ModelPrice.resolution == resolution,
         ModelPrice.aspect_ratio == aspect_ratio,
         ModelPrice.output_count == output_count,
+        ModelPrice.quality == quality,
     )
 
 
@@ -5233,7 +5272,9 @@ async def create_model_price_version(
     credit_cost: int,
     reason: str,
     fixed_surcharge: Decimal | None = None,
+    quality: str = "any",
 ) -> tuple[ModelPrice, list[int], bool]:
+    quality = parse_price_quality(quality)
     identity_condition = model_price_identity_condition(
         site_id=site_id,
         model_id=model_id,
@@ -5241,6 +5282,7 @@ async def create_model_price_version(
         resolution=resolution,
         aspect_ratio=aspect_ratio,
         output_count=output_count,
+        quality=quality,
     )
     active_prices = list(
         (
@@ -5274,6 +5316,7 @@ async def create_model_price_version(
         aspect_ratio=aspect_ratio,
         output_count=output_count,
         credit_cost=credit_cost,
+        quality=quality,
         fixed_surcharge=fixed_surcharge,
         version=latest_version + 1,
         is_active=True,
@@ -5331,6 +5374,7 @@ async def create_model_price(
         output_count=filters["output_count"],
         credit_cost=credit_cost,
         fixed_surcharge=parse_surcharge(payload.get("fixed_surcharge")),
+        quality=parse_price_quality(payload.get("quality")),
         reason=reason,
     )
     audit_reason = reason if created else f"{reason}；价格未变化"
@@ -5435,6 +5479,7 @@ async def create_model_prices_batch(
                             "aspect_ratio": aspect_ratio,
                             "output_count": output_count,
                             "credit_cost": credit_cost,
+                            "quality": parse_price_quality(payload.get("quality")),
                             "fixed_surcharge": parse_surcharge(payload.get("fixed_surcharge")),
                         }
                     )
@@ -5456,6 +5501,7 @@ async def create_model_prices_batch(
             output_count=entry["output_count"],
             credit_cost=entry["credit_cost"],
             fixed_surcharge=entry.get("fixed_surcharge"),
+            quality=entry.get("quality", "any"),
             reason=reason,
         )
         if created:
@@ -5537,6 +5583,7 @@ async def model_price_status(
             resolution=price.resolution,
             aspect_ratio=price.aspect_ratio,
             output_count=price.output_count,
+            quality=price.quality,
         )
         result = await db.execute(
             update(ModelPrice)

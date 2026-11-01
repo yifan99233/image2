@@ -22,6 +22,7 @@ from app.core.config import settings
 from app.core.exceptions import BusinessError
 from app.models.agent import AgentConfig
 from app.models.image_batch_upload import ImageBatchUpload
+from app.services.image_parameters import image_output_options
 from app.services.agent_openapi import AgentAPIError, AgentOpenAPIClient
 from app.services.sub2_image_billing import (
     Sub2BalanceReceipt, _billing_context, _record_operation, _to_sub2_amount,
@@ -54,8 +55,8 @@ def parse_manifest(raw: bytes) -> dict:
     model_id = value.get("model_id")
     if isinstance(model_id, bool) or not isinstance(model_id, int) or model_id <= 0:
         raise BusinessError("模型编号无效", code=40001)
-    for key in ("resolution", "aspect_ratio", "quality"):
-        if key in value and (not isinstance(value[key], str) or len(value[key]) > 32):
+    for key in ("resolution", "aspect_ratio", "quality", "size", "output_format"):
+        if value.get(key) is not None and (not isinstance(value[key], str) or len(value[key]) > 32):
             raise BusinessError("图片规格无效", code=40001)
     folders = value.get("folder_names")
     if folders is not None:
@@ -66,7 +67,7 @@ def parse_manifest(raw: bytes) -> dict:
             validate_folder_name(folder)
     return {"model_id": model_id, "work_type": "batch_generate", "batch_id": batch_id,
             "resolution": value.get("resolution", ""), "aspect_ratio": value.get("aspect_ratio", ""),
-            "quality": catalog.normalize_image_quality(value.get("quality")),
+            "quality": catalog.normalize_image_quality(value.get("quality")), **image_output_options(value),
             "prompts": [p.strip() for p in prompts], **({"folder_names": folders} if folders is not None else {})}
 
 
@@ -74,7 +75,7 @@ def manifest_hash(value: dict) -> str:
     # Same canonical representation as the legacy batch endpoint.
     return hashlib.sha256(json.dumps({
         "model_id": value["model_id"], "work_type": "batch_generate",
-        "resolution": value["resolution"], "aspect_ratio": value["aspect_ratio"], "quality": value["quality"],
+        "resolution": value["resolution"], "aspect_ratio": value["aspect_ratio"], "quality": value["quality"], **image_output_options(value),
         "task_inputs": [{"prompt": p, "input_image_url": None} for p in value["prompts"]],
         **({"folder_names": value["folder_names"]} if "folder_names" in value else {}),
     }, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
@@ -177,8 +178,7 @@ async def upload_summaries(db, user, batch_ids=None) -> list[dict]:
                                           ImageBatchUpload.payload["source_batch_id"].as_string().is_(None))
     if batch_ids is not None:
         query = query.where(ImageBatchUpload.batch_id.in_(batch_ids))
-    else:
-        query = query.where(ImageBatchUpload.created_at >= datetime.now(UTC) - timedelta(days=30))
+    query = query.where(ImageBatchUpload.created_at >= datetime.now(UTC) - timedelta(days=7))
     jobs = (await db.scalars(query.order_by(ImageBatchUpload.id.desc()).limit(20))).all()
     return [upload_summary(job) for job in jobs]
 
@@ -226,7 +226,7 @@ async def materialize_tasks(db, job, receipt):
                      "input_group_id": "prompt-" + hashlib.sha256(folder.encode()).hexdigest()[:48] if folder else None,
                      "site_id": job.site_id, "team_id": job.team_id, "user_id": job.user_id,
                      "model_id": value["model_id"], "work_type": "batch_generate", "prompt": prompt,
-                     "resolution": value["resolution"], "aspect_ratio": value["aspect_ratio"], "quality": value["quality"],
+                     "resolution": value["resolution"], "aspect_ratio": value["aspect_ratio"], "quality": value["quality"], **image_output_options(value),
                      "credit_cost": cost, "pricing_snapshot": value.get("pricing_snapshot"), "status": "queued", "timeout_seconds": value["timeout_seconds"],
                      "disable_retry": value["disable_retry"], "input_image_url": None, "input_image_urls": "[]"})
         if cost > 0:

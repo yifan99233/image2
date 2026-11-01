@@ -192,7 +192,7 @@ async def _member_key_state(
             binding["text_usage"].append(int(mapping.agent_key_id))
             if not mapping.is_deleted:
                 binding["text"].append(int(mapping.agent_key_id))
-        if mapping.group_id == config.image_group_id:
+        if mapping.group_id is not None and (mapping.group_id == config.image_group_id or mapping.group_id != config.text_group_id):
             binding["image_usage"].append(int(mapping.agent_key_id))
             if not mapping.is_deleted:
                 binding["image"].append(int(mapping.agent_key_id))

@@ -112,19 +112,34 @@ def _display_task_aspect(work_type: str | None, raw: str | None) -> tuple[str, s
     return value, ""
 
 
+def output_assets_from_row(row) -> list[dict]:
+    if row.get("output_expired_at"):
+        return []
+    manifest = row.get("output_image_assets")
+    if not isinstance(manifest, list) or not manifest:
+        manifest = [{"url": row.get("output_image_url"), "r2_url": row.get("output_image_r2_url"),
+                     "r2_expires_at": row.get("output_image_r2_expires_at")}]
+    assets = []
+    for item in manifest:
+        expiry = item.get("r2_expires_at")
+        if isinstance(expiry, str):
+            expiry = datetime.fromisoformat(expiry)
+        asset = serialize_asset(item.get("url"), local_url=item.get("url"),
+                                r2_url=item.get("r2_url"), r2_expires_at=expiry)
+        if asset:
+            assets.append(asset)
+    # The existing signed thumbnail endpoint serves the primary image. Other
+    # outputs use their durable CDN URLs; never give them the primary thumbnail.
+    if assets and assets[0]["mime_type"].startswith("image/") and row.get("id"):
+        assets[0]["thumbnail_url"] = thumbnail_path(int(row["id"]), assets[0]["local_url"])
+    return assets
+
+
 def serialize_task(row) -> dict:
     input_assets = input_assets_from_row(row, "upload")
     for index, asset in enumerate(input_assets):
         if asset["mime_type"].startswith("image/"):
             asset["thumbnail_url"] = thumbnail_path(int(row.get("id")), asset["local_url"], input_index=index)
-    output_asset = serialize_asset(
-        row.get("output_image_url"),
-        local_url=row.get("output_image_url"),
-        r2_url=row.get("output_image_r2_url"),
-        r2_expires_at=row.get("output_image_r2_expires_at"),
-    )
-    if output_asset and output_asset["mime_type"].startswith("image/"):
-        output_asset["thumbnail_url"] = thumbnail_path(int(row.get("id")), output_asset["local_url"])
     status = row.get("status")
     progress_stage = status
     if status == "running":
@@ -153,6 +168,8 @@ def serialize_task(row) -> dict:
         "resolution": row.get("resolution") or "",
         "aspect_ratio": aspect_ratio,
         "quality": row.get("quality") or "auto",
+        "size": row.get("size"),
+        "output_format": row.get("output_format"),
         "duration": duration,
         "credit_cost": row.get("credit_cost") or 0,
         "status": status,
@@ -164,7 +181,8 @@ def serialize_task(row) -> dict:
             else row.get("failure_message")
         ),
         "input_images": input_assets,
-        "output_images": [output_asset] if output_asset else [],
+        "output_images": output_assets_from_row(row),
+        "output_expired_at": iso_datetime(row.get("output_expired_at")),
         "is_collected": bool(row.get("is_collected")),
         "owner_user_id": row.get("user_id"),
         "owner_name": row.get("owner_name") or "",
@@ -183,14 +201,6 @@ def serialize_task_status(row) -> dict:
     progress_stage = status
     if status == "running":
         progress_stage = "downloading" if row.get("provider_http_status") is not None else "generating"
-    output_asset = serialize_asset(
-        row.get("output_image_url"),
-        local_url=row.get("output_image_url"),
-        r2_url=row.get("output_image_r2_url"),
-        r2_expires_at=row.get("output_image_r2_expires_at"),
-    )
-    if output_asset and output_asset["mime_type"].startswith("image/"):
-        output_asset["thumbnail_url"] = thumbnail_path(int(row.get("id")), output_asset["local_url"])
     return {
         "id": row.get("id"),
         "status": status,
@@ -200,7 +210,8 @@ def serialize_task_status(row) -> dict:
             if status in {"failed", "refunded"}
             else row.get("failure_message")
         ),
-        "output_images": [output_asset] if output_asset else [],
+        "output_images": output_assets_from_row(row),
+        "output_expired_at": iso_datetime(row.get("output_expired_at")),
         "worker_started_at": iso_datetime(row.get("worker_started_at")),
         "finished_at": iso_datetime(row.get("finished_at")),
     }
@@ -208,8 +219,8 @@ def serialize_task_status(row) -> dict:
 
 def serialize_gallery_work(row) -> dict:
     output_asset = serialize_asset(
-        row.get("output_image_url"),
-        local_url=row.get("output_image_url"),
+        None if row.get("output_expired_at") else row.get("output_image_url"),
+        local_url=None if row.get("output_expired_at") else row.get("output_image_url"),
         r2_url=row.get("output_image_r2_url"),
         r2_expires_at=row.get("output_image_r2_expires_at"),
     ) or serialize_asset("")
@@ -227,7 +238,7 @@ def serialize_gallery_work(row) -> dict:
         "prompt_snapshot": row.get("prompt") or "",
         "cover_asset": output_asset,
         "input_assets": input_assets if is_edit_work else [],
-        "output_assets": [output_asset] if output_asset else [],
+        "output_assets": output_assets_from_row(row),
         "is_collected": False,
         "is_recommended": True,
         "owner_user_id": row.get("user_id"),
@@ -250,8 +261,8 @@ def serialize_user_work(row) -> dict:
     requested = bool(row.get("is_gallery_featured"))
     reviewed = row.get("gallery_featured_by") is not None
     output_asset = serialize_asset(
-        row.get("output_image_url"),
-        local_url=row.get("output_image_url"),
+        None if row.get("output_expired_at") else row.get("output_image_url"),
+        local_url=None if row.get("output_expired_at") else row.get("output_image_url"),
         r2_url=row.get("output_image_r2_url"),
         r2_expires_at=row.get("output_image_r2_expires_at"),
     ) or serialize_asset("")
@@ -266,7 +277,7 @@ def serialize_user_work(row) -> dict:
         "prompt_snapshot": row.get("prompt") or "",
         "cover_asset": output_asset,
         "input_assets": input_assets,
-        "output_assets": [output_asset],
+        "output_assets": output_assets_from_row(row),
         "is_collected": bool(row.get("is_collected")),
         "is_recommended": requested and reviewed,
         "gallery_review_status": ("approved" if reviewed else "pending") if requested else ("rejected" if reviewed else "none"),

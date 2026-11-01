@@ -26,3 +26,7 @@ class ImageAsset(Base):
     sha256 = Column(String(64), nullable=False)
     source = Column(String(32), nullable=False, default="upload", server_default="upload")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    retention_pending_at = Column(DateTime(timezone=True))
+    storage_deleted_at = Column(DateTime(timezone=True))
+    retention_error = Column(String(128))

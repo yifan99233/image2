@@ -1,5 +1,7 @@
+import { LoadingIndicator } from "@/components/ui/LoadingIndicator";
+import { LoadingState } from "@/components/ui/LoadingState";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Crown, Loader2, ShieldCheck, Trash2, UsersRound } from "lucide-react";
+import { CheckCircle2, Crown, ShieldCheck, Trash2, UsersRound } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { teamService } from "@/services/team";
@@ -189,7 +191,7 @@ export function TeamSettingsPage() {
       {notice ? <div className="inline-notice"><CheckCircle2 size={17} /><span>{notice}</span></div> : null}
 
       {isLoading ? (
-        <div className="empty-state"><Loader2 className="spin-icon" size={30} /><p>正在加载团队工作区</p></div>
+        <LoadingState label="正在加载团队工作区…" />
       ) : settings?.collaboration_enabled ? (
         <>
           <section className="team-workspace__overview">
@@ -225,7 +227,7 @@ export function TeamSettingsPage() {
                 >
                   <span>{workspaceLabel(team)} · {team.name}</span>
                   <em>{team.seats_used} / {team.seat_limit} 席 · {roleLabel[team.current_role ?? "member"] ?? "成员"}</em>
-                  {isSwitchingTeamId === team.id ? <Loader2 className="spin-icon" size={15} /> : null}
+                  {isSwitchingTeamId === team.id ? <LoadingIndicator className="spin-icon" size={15} /> : null}
                 </button>
               ))}
             </div>
@@ -298,7 +300,7 @@ export function TeamSettingsPage() {
                       )}
                       {canManageMembers && !memberIsOwner && (isOwner || member.role === "member") ? (
                         <button type="button" className="team-members-panel__remove" disabled={busy} onClick={() => setMemberPendingRemoval(member)} aria-label={`移除 ${memberDisplayName(member)}`}>
-                          {busy ? <Loader2 className="spin-icon" size={15} /> : <Trash2 size={15} />}
+                          {busy ? <LoadingIndicator className="spin-icon" size={15} /> : <Trash2 size={15} />}
                         </button>
                       ) : null}
                     </article>
@@ -321,7 +323,7 @@ export function TeamSettingsPage() {
               <strong>你已加入以下团队</strong>
               {accessibleTeams.map((team) => (
                 <Button key={team.id} variant="secondary" type="button" disabled={isSwitchingTeamId !== null} onClick={() => void switchTeam(team)}>
-                  {isSwitchingTeamId === team.id ? <Loader2 className="spin-icon" size={16} /> : null}
+                  {isSwitchingTeamId === team.id ? <LoadingIndicator className="spin-icon" size={16} /> : null}
                   切换至团队版 · {team.name}
                 </Button>
               ))}
