@@ -1,0 +1,56 @@
+/* Compact, evenly aligned ratio choices; keep duration controls independent. */
+:root[data-theme] .app-shell.app-shell--yiyuan .aspect-ratio-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .aspect-ratio-grid .aspect-choice {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 48px;
+  min-width: 0;
+  padding: 8px 12px;
+  gap: 10px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: none;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .aspect-ratio-grid .aspect-choice__preview {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 28px;
+  flex: 0 0 32px;
+  color: var(--text-muted);
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .aspect-ratio-grid .aspect-choice__preview i {
+  transform: scale(.65);
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 32%, var(--border));
+  border-radius: 3px;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .aspect-ratio-grid .aspect-choice__preview svg { width: 20px; height: 20px; }
+:root[data-theme] .app-shell.app-shell--yiyuan .aspect-ratio-grid .aspect-choice strong { font-size: 13px; font-weight: 500; line-height: 1.3; }
+:root[data-theme] .app-shell.app-shell--yiyuan .aspect-ratio-grid .aspect-choice:hover:not(:disabled) { border-color: color-mix(in srgb, var(--primary) 45%, var(--border)); }
+:root[data-theme] .app-shell.app-shell--yiyuan .aspect-ratio-grid .aspect-choice.is-active {
+  background: var(--primary-soft);
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--border));
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .aspect-ratio-grid .aspect-choice.is-active .aspect-choice__preview { color: var(--primary); }
+:root[data-theme] .app-shell.app-shell--yiyuan .aspect-ratio-grid + small { color: var(--text-muted); font-size: 11px; line-height: 1.6; }
+@media (max-width: 767px), (hover: none) and (pointer: coarse) and (max-width: 1023px) {
+  :root[data-theme] .app-shell.app-shell--yiyuan .aspect-ratio-grid { gap: 6px; }
+  :root[data-theme] .app-shell.app-shell--yiyuan .aspect-ratio-grid .aspect-choice { padding: 8px 6px; gap: 5px; min-height: 48px; }
+  :root[data-theme] .app-shell.app-shell--yiyuan .aspect-ratio-grid .aspect-choice__preview { flex-basis: 26px; width: 26px; }
+  :root[data-theme] .app-shell.app-shell--yiyuan .aspect-ratio-grid .aspect-choice strong { font-size: 12px; }
+}
+@media (max-width: 360px) {
+  :root[data-theme] .app-shell.app-shell--yiyuan .aspect-ratio-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme] .app-shell.app-shell--yiyuan .aspect-ratio-grid .aspect-choice { transition: none; }
+}

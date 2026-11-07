@@ -1,0 +1,30 @@
+:root[data-theme] .app-shell.app-shell--yiyuan .gallery-page {
+  align-content: start;
+  grid-auto-rows: max-content;
+  padding: 24px;
+  gap: 20px;
+}
+:root[data-theme] .app-shell.app-shell--yiyuan .gallery-page .page-header { padding: 0; min-height: 0; gap: 16px; flex-wrap: wrap; }
+:root[data-theme] .app-shell.app-shell--yiyuan .gallery-page .page-header h1 { font-size: 24px; margin: 0; }
+:root[data-theme] .app-shell.app-shell--yiyuan .gallery-page .page-header p { font-size: 13px; margin: 6px 0 0; }
+.gallery-page .gallery-grid { gap: 16px; align-items: start; }
+.gallery-page .gallery-card { cursor: default; background: var(--surface); }
+.gallery-page .gallery-card__media { padding: 10px; gap: 10px; }
+.gallery-page .gallery-card--compare .gallery-card__media { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.gallery-page .gallery-card__image { height: clamp(180px, 20vw, 260px); aspect-ratio: auto; border-radius: 9px; }
+.gallery-page .gallery-card__preview { display: block; width: 100%; height: 100%; border: 0; padding: 0; background: var(--surface-muted); cursor: zoom-in; }
+.gallery-page .gallery-card__preview img { width: 100%; height: 100%; object-fit: contain; filter: none; }
+.gallery-page .gallery-card__image figcaption { pointer-events: none; font-size: 11px; font-weight: 600; padding: 6px 8px; top: 8px; left: 8px; }
+:root[data-theme] .app-shell--yiyuan .gallery-page .gallery-card__image--output figcaption { background: var(--primary); color: #fff; }
+.gallery-page .gallery-card__body { padding: 4px 14px 14px; gap: 7px; }
+.gallery-page .gallery-card h2 { font-size: 16px; }
+.gallery-page .gallery-card p { -webkit-line-clamp: 2; font-size: 13px; overflow-wrap: anywhere; }
+.gallery-page .gallery-card__body .button { justify-self: start; min-height: 34px; padding: 6px 12px; font-size: 12px; }
+.gallery-page .gallery-card__preview:focus-visible { outline: 3px solid var(--primary); outline-offset: -3px; }
+@media (max-width: 767px), (hover: none) and (pointer: coarse) and (max-width: 1023px) {
+  :root[data-theme] .app-shell.app-shell--yiyuan .gallery-page { padding: 16px; gap: 16px; }
+  .gallery-page .gallery-grid { grid-template-columns: minmax(0, 1fr); }
+  .gallery-page .gallery-card__image { height: clamp(160px, 44vw, 240px); }
+  .gallery-page .gallery-card__body .button { min-height: 44px; }
+}
+.gallery-page .gallery-card p { min-height: 0; }

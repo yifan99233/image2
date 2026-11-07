@@ -1,0 +1,424 @@
+:root {
+  color: #efefed;
+  background: #151514;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+button,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+button:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid #7789ff;
+  outline-offset: 2px;
+}
+
+.studio {
+  display: grid;
+  min-height: 100vh;
+  grid-template-rows: 58px minmax(0, 1fr);
+  background: #151514;
+}
+
+.studio-header {
+  position: relative;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 16px;
+  border-bottom: 1px solid #2a2928;
+  background: rgb(22 22 21 / 94%);
+  box-shadow: 0 3px 18px rgb(0 0 0 / 18%);
+  backdrop-filter: blur(16px);
+}
+
+.header-left,
+.header-center,
+.header-right {
+  display: flex;
+  align-items: center;
+}
+
+.header-left {
+  gap: 11px;
+}
+
+.header-center {
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid #32312f;
+  border-radius: 10px;
+  background: #1c1c1b;
+}
+
+.header-right {
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.plain-icon,
+.zoom-dock button,
+.tool-dock button {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #aaa9a6;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.plain-icon:hover:not(:disabled),
+.zoom-dock button:hover,
+.tool-dock button:hover {
+  background: #2b2a29;
+  color: #f1f0ed;
+}
+
+.plain-icon:active:not(:disabled),
+.zoom-dock button:active,
+.tool-dock button:active {
+  transform: scale(0.95);
+}
+
+.plain-icon:disabled {
+  cursor: not-allowed;
+  opacity: 0.25;
+}
+
+.logo {
+  display: grid;
+  width: 31px;
+  height: 31px;
+  place-items: center;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #687cff, #9f70f7);
+  box-shadow: 0 6px 15px rgb(103 124 255 / 20%);
+  color: #fff;
+}
+
+.board-title {
+  display: grid;
+  gap: 2px;
+}
+
+.board-title strong {
+  font-size: 13px;
+  font-weight: 680;
+}
+
+.board-title span {
+  color: #777673;
+  font-size: 9px;
+}
+
+.version {
+  margin: 0 6px;
+  color: #6f6e6b;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+}
+
+.avatar {
+  display: grid;
+  width: 31px;
+  height: 31px;
+  place-items: center;
+  border: 1px solid #4a4946;
+  border-radius: 50%;
+  color: #dddcd9;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.canvas-shell {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.infinite-canvas {
+  width: 100%;
+  height: 100%;
+  background-color: #171716;
+  background-image:
+    linear-gradient(#242422 1px, transparent 1px),
+    linear-gradient(90deg, #242422 1px, transparent 1px);
+  cursor: default;
+  touch-action: none;
+}
+
+.infinite-canvas canvas {
+  display: block;
+}
+
+.infinite-canvas.is-panning {
+  cursor: grab;
+}
+
+.infinite-canvas.is-panning:active {
+  cursor: grabbing;
+}
+
+.zoom-dock,
+.tool-dock,
+.prompt-composer {
+  position: absolute;
+  z-index: 12;
+  border: 1px solid #3a3937;
+  background: rgb(31 30 29 / 93%);
+  box-shadow: 0 14px 38px rgb(0 0 0 / 36%);
+  backdrop-filter: blur(18px);
+}
+
+.zoom-dock {
+  bottom: 22px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px;
+  border-radius: 13px;
+}
+
+.zoom-dock button {
+  width: 31px;
+  height: 31px;
+}
+
+.zoom-dock .zoom-number {
+  width: 48px;
+  color: #d3d1cd;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.tool-dock {
+  bottom: 22px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px;
+  border-radius: 13px;
+  transform: translateX(-50%);
+}
+
+.tool-dock button.active {
+  background: #e8e7e3;
+  color: #252422;
+}
+
+.tool-dock button.danger:hover {
+  background: #542a27;
+  color: #ff8e83;
+}
+
+.tool-dock > span {
+  width: 1px;
+  height: 22px;
+  margin: 0 4px;
+  background: #44423f;
+}
+
+.prompt-composer {
+  right: 20px;
+  bottom: 22px;
+  width: min(590px, calc(100vw - 420px));
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.composer-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 10px 7px 13px;
+}
+
+.composer-spark {
+  display: grid;
+  width: 29px;
+  height: 29px;
+  place-items: center;
+  border-radius: 9px;
+  background: #292945;
+  color: #9aa7ff;
+}
+
+.composer-main textarea {
+  width: 100%;
+  height: 48px;
+  padding: 5px 2px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #f1efec;
+  font-size: 12px;
+  line-height: 1.45;
+  resize: none;
+}
+
+.composer-main textarea::placeholder {
+  color: #777570;
+}
+
+.generate-button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #6f80ff, #9a68ee);
+  box-shadow: 0 8px 20px rgb(104 117 245 / 20%);
+  color: #fff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.generate-button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.generate-button:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.4);
+  opacity: 0.48;
+}
+
+.composer-options {
+  display: flex;
+  min-height: 37px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px 8px 51px;
+}
+
+.composer-options select {
+  height: 28px;
+  padding: 0 23px 0 8px;
+  border: 1px solid #3d3c3a;
+  border-radius: 8px;
+  outline: none;
+  background: #191918;
+  color: #bdbbb7;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.composer-tip {
+  margin-left: auto;
+  color: #666561;
+  font-size: 9px;
+}
+
+.toast {
+  position: absolute;
+  z-index: 20;
+  top: 16px;
+  left: 50%;
+  padding: 9px 13px;
+  border: 1px solid #41403e;
+  border-radius: 10px;
+  background: rgb(35 34 33 / 94%);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 25%);
+  color: #d7d5d1;
+  font-size: 10px;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: toast-in 180ms ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -5px);
+  }
+}
+
+@media (max-width: 1100px) {
+  .prompt-composer {
+    right: 14px;
+    width: 490px;
+  }
+
+  .tool-dock {
+    left: 300px;
+  }
+}
+
+@media (max-width: 760px) {
+  .studio-header {
+    grid-template-columns: 1fr auto;
+  }
+
+  .header-center,
+  .version {
+    display: none;
+  }
+
+  .prompt-composer {
+    right: 12px;
+    bottom: 70px;
+    left: 12px;
+    width: auto;
+  }
+
+  .tool-dock {
+    right: 12px;
+    bottom: 14px;
+    left: auto;
+    transform: none;
+  }
+
+  .zoom-dock {
+    bottom: 14px;
+    left: 12px;
+  }
+
+  .composer-tip {
+    display: none;
+  }
+}

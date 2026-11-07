@@ -1,0 +1,13 @@
+[Unit]
+Description=Magic seven-day generated-image retention
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker exec image2-user-server timeout --signal=TERM --kill-after=30s 45m python -u -m app.services.image_retention --apply --limit 100 --max-batches 10000
+TimeoutStartSec=46min
+UMask=0077
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=magic-image-retention

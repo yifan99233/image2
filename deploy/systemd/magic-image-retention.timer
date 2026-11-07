@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Magic image retention every six hours
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:30:00 Asia/Shanghai
+AccuracySec=30s
+Persistent=true
+Unit=magic-image-retention.service
+
+[Install]
+WantedBy=timers.target
