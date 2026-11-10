@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Exercise the real Nginx config against two isolated HTTPS origins."""
+"""Exercise the real Nginx config against isolated HTTPS origins."""
 import http.client
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import socket
@@ -71,7 +72,12 @@ def main():
         tmp = Path(directory)
         (tmp / "logs").mkdir()
         cert, key = tmp / "cert.pem", tmp / "key.pem"
-        domains = ["agent3.shyfai.cn", "yy.shagentai.com", "hk-agent3.shyfai.cn", "hk-yy.shagentai.com"]
+        routes = [
+            ("hk-agent3.shyfai.cn", "agent3.shyfai.cn", "hk_api_agent3_origin"),
+            ("hk-yy.shagentai.com", "yy.shagentai.com", "hk_api_yy_origin"),
+            ("hk-agent.shyfai.com", "agent.shyfai.com", "hk_api_agent_origin"),
+        ]
+        domains = [host for alias, canonical, _ in routes for host in (canonical, alias)]
         subprocess.run([
             "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
             "-subj", "/CN=agent3.shyfai.cn", "-addext",
@@ -81,7 +87,7 @@ def main():
         origins = []
         process = None
         try:
-            for host in domains[:2]:
+            for _, host, _ in routes:
                 server = ThreadingHTTPServer(("127.0.0.1", 0), Origin)
                 server.daemon_threads = True
                 server.origin_host, server.failed_requests = host, 0
@@ -93,13 +99,20 @@ def main():
                 origins.append(server)
             http_port, https_port = free_port(), free_port()
             config = (ROOT / "hk-api-edge.conf").read_text()
+            for (_, _, pool), origin in zip(routes, origins):
+                # YY and agent share a production IP but need distinct TLS
+                # keepalive pools; give each its own fixture origin as well.
+                config, count = re.subn(
+                    r"(upstream " + re.escape(pool) + r" \{\s*server )[^;]+;",
+                    lambda m: m.group(1) + f"127.0.0.1:{origin.server_port};",
+                    config,
+                )
+                assert count == 1, pool
             replacements = {
                 "listen 80;": f"listen 127.0.0.1:{http_port};",
                 "listen [::]:80;": "",
                 "listen 443 ssl http2;": f"listen 127.0.0.1:{https_port} ssl http2;",
                 "listen [::]:443 ssl http2;": "",
-                "159.195.17.59:443": f"127.0.0.1:{origins[0].server_port}",
-                "159.195.232.157:443": f"127.0.0.1:{origins[1].server_port}",
                 "/etc/letsencrypt/live/hk-api-edge/fullchain.pem": str(cert),
                 "/etc/letsencrypt/live/hk-api-edge/privkey.pem": str(key),
                 "/etc/ssl/certs/ca-certificates.crt": str(cert),
@@ -137,7 +150,7 @@ def main():
 
             # Alternate hosts repeatedly to catch upstream/SNI keepalive mixups.
             for _ in range(3):
-                for alias, canonical in zip(domains[2:], domains[:2]):
+                for alias, canonical, _ in routes:
                     conn, response = request(alias, "/echo?secret=must-not-be-logged", extra={
                         "Origin": f"https://{alias}", "Referer": f"https://{alias}/settings",
                         "Authorization": "Bearer test-only", "Cookie": "test=1",
@@ -154,7 +167,7 @@ def main():
                     assert data["headers"]["X-Forwarded-For"] == "127.0.0.1"
                     assert response.getheader("Access-Control-Allow-Origin") == f"https://{alias}"
                     conn.close()
-            for alias in domains[2:]:
+            for alias, _, _ in routes:
                 conn, response = request(alias, "/redirect")
                 response.read()
                 assert response.status == 302
