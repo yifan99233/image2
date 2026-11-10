@@ -51,6 +51,7 @@ class Origin(BaseHTTPRequestHandler):
         body = json.dumps({
             "origin": host,
             "sni": self.connection.test_sni,
+            "path": self.path,
             "headers": dict(self.headers),
         }).encode()
         self.send_response(302 if self.path == "/redirect" else 200)
@@ -76,6 +77,7 @@ def main():
             ("hk-agent3.shyfai.cn", "agent3.shyfai.cn", "hk_api_agent3_origin"),
             ("hk-yy.shagentai.com", "yy.shagentai.com", "hk_api_yy_origin"),
             ("hk-agent.shyfai.com", "agent.shyfai.com", "hk_api_agent_origin"),
+            ("hk.hzpixai.com", "hzpixai.com", "hk_api_hzpixai_origin"),
         ]
         domains = [host for alias, canonical, _ in routes for host in (canonical, alias)]
         subprocess.run([
@@ -168,6 +170,12 @@ def main():
                     assert response.getheader("Access-Control-Allow-Origin") == f"https://{alias}"
                     conn.close()
             for alias, _, _ in routes:
+                conn, response = request(alias, "/channels?tab=video")
+                data = json.loads(response.read())
+                assert response.status == 200
+                assert data["path"] == "/channels?tab=video", data
+                assert response.getheader("Location") is None
+                conn.close()
                 conn, response = request(alias, "/redirect")
                 response.read()
                 assert response.status == 302
