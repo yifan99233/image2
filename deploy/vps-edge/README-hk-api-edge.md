@@ -17,15 +17,23 @@ The runtime site is `/etc/nginx/conf.d/zz-hk-api-edge.conf`, installed from the
 Git checkout. Backups stay outside every active Nginx include. Validate the
 complete configuration and preserve the existing warning set before reloading.
 
-For the initial hk-agent certificate expansion, install only
-`hk-agent.bootstrap.conf` alongside the existing site to serve HTTP ACME files
-from `/var/www/acme`. Include all three aliases in the `hk-api-edge` certificate.
-After issuance, atomically install the expanded TLS site and remove the
+Include all three aliases in the `hk-api-edge` certificate. The current Hong
+Kong host is not reachable by the CA on public port 80, so use manual DNS-01
+validation with the Cloudflare credential held in the local macOS Keychain.
+Only create the requested temporary TXT proof, verify authoritative DNS before
+continuing Certbot, then remove the proof created for that validation. Never
+copy the Cloudflare API token onto this server.
+
+`hk-agent.bootstrap.conf` is an optional HTTP-only challenge site for a future
+network where port 80 is publicly reachable; its files use `/var/www/acme`.
+After issuance, atomically install the expanded TLS site and remove any
 temporary bootstrap from the active include set before validating/reloading;
 otherwise its port-80 hostname would conflict with the expanded site.
 
-Use webroot renewal and `sh /opt/image2/deploy/vps-edge/reload-hk-api-certificate.sh`
-as the deploy hook. Run `test-hk-api-edge.py` with Nginx/OpenSSL/Python available:
+The deploy hook is `sh /opt/image2/deploy/vps-edge/reload-hk-api-certificate.sh`.
+It validates/reloads Nginx; it does not automate manual DNS validation. Renewal
+therefore still requires the DNS-01 process unless a separately authorized DNS
+auth hook is configured. Run `test-hk-api-edge.py` with Nginx/OpenSSL/Python available:
 it uses isolated loopback HTTPS origins and no production application state.
 After rollout, verify DNS, certificate names, API identity, existing aliases,
 and request-ID-correlated edge logs proving the actual pinned origin.
