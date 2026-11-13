@@ -1,3 +1,4 @@
+import { VideoDurationPicker } from "@/components/video/VideoDurationPicker";
 import { LoadingArt } from "@/components/ui/LoadingArt";
 import { LoadingIndicator } from "@/components/ui/LoadingIndicator";
 import { CreationMobileTabs } from "@/components/layout/CreationMobileTabs";
@@ -6,7 +7,7 @@ import { ImageOutputSettings, ImageCustomSizeChoice, ImageCustomSizeFields } fro
 import { imageOutputOptions } from "@/utils/imageOutputOptions";
 import { useEffect, useMemo, useRef, useState, type CompositionEvent, type CSSProperties, type ChangeEvent, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { AlertTriangle, Boxes, Brush, Camera, ChevronDown, ChevronUp, CheckCircle2, Download, Edit3, FileImage, FolderPlus, PackageOpen, Play, RotateCcw, Shirt, Trash2, UploadCloud, X } from "lucide-react";
-import { Clapperboard, Film, Image, Images, Layers3, Sparkles } from "@/components/ui/StudioIcons";
+import { Clapperboard, Image, Images, Layers3, Sparkles } from "@/components/ui/StudioIcons";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { BatchGroupEditor } from "@/components/batch/BatchGroupEditor";
@@ -31,9 +32,10 @@ import { createImageEditNavigationState } from "@/utils/imageEditNavigation";
 import { readToolPreference, resolveToolPreference, writeToolPreference } from "@/utils/toolPreferences";
 import { getAssetPreviewSource } from "@/utils/assetPreview";
 import { isVideoAsset } from "@/pages/shared/mediaConfig";
+import { fileReference, mediaKindLabel, referenceCapabilities, referenceHint, videoReferenceError, videoWorkType } from "@/utils/videoReferences";
 import { appendBatchPrompts, createBatchPromptTemplate, readBatchPromptFile, readBatchGenerateFile, type BatchPromptImport, splitBatchPrompts, type BatchEditPromptMode, type BatchPromptTemplateFormat } from "@/utils/batchPrompts";
 
-type ToolMode = "text-to-image" | "text-to-video" | "image-to-video" | "batch-generate" | "batch-edit";
+type ToolMode = "text-to-image" | "video" | "text-to-video" | "image-to-video" | "batch-generate" | "batch-edit";
 type ProductMode = "try-on" | "multi-view" | "pose" | "ootd" | "background" | "scene";
 type MentionMenuState = {
   query: string;
@@ -55,7 +57,15 @@ type ToolConfig = {
   submitLabel: string;
 };
 
-const creativeConfig: Record<ToolMode, ToolConfig> = {
+const creativeConfig: Record<Exclude<ToolMode, "text-to-video" | "image-to-video">, ToolConfig> = {
+  video: {
+    title: "视频生成",
+    icon: Clapperboard,
+    intro: "描述你想生成的视频，也可以添加图片、视频或音频作为参考。素材选填，支持类型随模型变化。",
+    workType: "video",
+    needsUpload: false,
+    submitLabel: "开始生成视频",
+  },
   "text-to-image": {
     title: "文生图",
     icon: Image,
@@ -63,22 +73,6 @@ const creativeConfig: Record<ToolMode, ToolConfig> = {
     workType: "text_to_image",
     needsUpload: false,
     submitLabel: "开始生成",
-  },
-  "text-to-video": {
-    title: "文生视频",
-    icon: Clapperboard,
-    intro: "用文字描述生成短视频。可选择画面比例与时长；计费按分辨率 × 时长。",
-    workType: "text_to_video",
-    needsUpload: false,
-    submitLabel: "开始生成视频",
-  },
-  "image-to-video": {
-    title: "图生视频",
-    icon: Film,
-    intro: "上传参考图并描述运动/镜头，生成短视频。适合商品动效、人物微动与场景延展。",
-    workType: "image_to_video",
-    needsUpload: true,
-    submitLabel: "开始生成视频",
   },
   "batch-generate": {
     title: "批量生图",
@@ -99,6 +93,7 @@ const creativeConfig: Record<ToolMode, ToolConfig> = {
 };
 
 const relatedTaskWorkTypes: Record<string, string[]> = {
+  video: ["text_to_video", "image_to_video"],
   text_to_image: ["text_to_image", "batch_generate"],
   text_to_video: ["text_to_video"],
   image_to_video: ["image_to_video"],
@@ -214,7 +209,7 @@ const getMentionState = (value: string, cursorPosition: number): MentionMenuStat
 };
 
 export const CreativeToolPage = ({ mode }: { mode: ToolMode }) => (
-  <RealToolPage key={mode} config={creativeConfig[mode]} />
+  <RealToolPage key={mode} config={creativeConfig[mode === "text-to-video" || mode === "image-to-video" ? "video" : mode]} />
 );
 
 export const ProductToolPage = ({ mode }: { mode: ProductMode }) => (
@@ -287,7 +282,11 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
     () => models.find((model) => model.id === selectedModelId) ?? null,
     [models, selectedModelId],
   );
-  const isVideoTool = config.workType === "text_to_video" || config.workType === "image_to_video";
+  const isVideoTool = config.workType === "video" || config.workType === "text_to_video" || config.workType === "image_to_video";
+  const effectiveWorkType = isVideoTool ? videoWorkType(uploadedAssets.length) : config.workType;
+  const videoCaps = referenceCapabilities(selectedModel);
+  const referenceError = isVideoTool ? videoReferenceError(selectedModel, uploadedAssets) : null;
+  const canAddVideoReference = Boolean(selectedModel && (!selectedModel.supported_work_types || selectedModel.supported_work_types.includes("image_to_video")));
   const isBatchTool = config.workType === "batch_generate" || config.workType === "batch_edit";
   const batchGeneratePrompts = useMemo(
     () => importedBatch?.prompts ?? splitBatchPrompts(prompt),
@@ -437,7 +436,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
       return () => controller.abort();
     }
     imageTaskService
-      .getTasks({ limit: TASK_HISTORY_PAGE_SIZE, signal: controller.signal })
+      .getTasks({ limit: TASK_HISTORY_PAGE_SIZE, signal: controller.signal, workTypes: isVideoTool ? relatedTaskWorkTypes.video : undefined })
       .then((items) => {
         if (ignore) return;
         setTasks((current) => {
@@ -475,6 +474,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
       const items = await imageTaskService.getTasks({
         limit: TASK_HISTORY_PAGE_SIZE,
         beforeId: historyCursor ?? undefined,
+        workTypes: isVideoTool ? relatedTaskWorkTypes.video : undefined,
         signal: controller.signal,
       });
       if (controller.signal.aborted) return;
@@ -529,7 +529,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
     if (isVideoTool && !duration) return;
     let ignore = false;
     modelService
-      .quote(selectedModel.id, config.workType, resolution, aspectRatio, 1, isVideoTool ? duration : undefined, isVideoTool || selectedModel.supports_quality === false ? "auto" : quality)
+      .quote(selectedModel.id, effectiveWorkType, resolution, aspectRatio, 1, isVideoTool ? duration : undefined, isVideoTool || selectedModel.supports_quality === false ? "auto" : quality)
       .then((nextQuote) => {
         if (!ignore) {
           setQuote(nextQuote.credit_cost);
@@ -543,13 +543,14 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
     return () => {
       ignore = true;
     };
-  }, [resolution, aspectRatio, duration, quality, selectedModel, config.workType, isVideoTool]);
+  }, [resolution, aspectRatio, duration, quality, selectedModel, effectiveWorkType, isVideoTool]);
 
   const imagesPerGeneration = selectedModel?.images_per_generation ?? 1;
-  const maxInputImages = selectedModel?.max_input_images ?? (config.needsUpload ? 8 : 0);
+  const maxInputImages = isVideoTool ? videoCaps.max_total : selectedModel?.max_input_images ?? (config.needsUpload ? 8 : 0);
   const maxSelectableImages = config.workType === "batch_edit" ? batchEditMaxTasks : maxInputImages;
 
   const selectGenerationModel = (nextModel: ImageModel) => {
+    if (isUploading || isSubmitting) return;
     const supportsResolution = nextModel.supported_resolutions.some((option) => option.value === resolution);
     const supportsAspectRatio = nextModel.supported_aspect_ratios.some((option) => option.value === aspectRatio);
     const supportsDuration = nextModel.supported_durations?.some((option) => option.value === duration) ?? !isVideoTool;
@@ -566,7 +567,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
     setResolution(nextResolution);
     setAspectRatio(nextAspectRatio);
     setDuration(nextDuration);
-    const imageLimitExceeded = config.workType !== "batch_edit" && uploadedAssets.length > nextModel.max_input_images;
+    const imageLimitExceeded = !isVideoTool && config.workType !== "batch_edit" && uploadedAssets.length > nextModel.max_input_images;
     if (adjustedFields.length || imageLimitExceeded) {
       const messages = [
         adjustedFields.length ? `已调整${adjustedFields.join("、")}以兼容该模型` : "",
@@ -581,6 +582,24 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
     event.currentTarget.value = "";
     if (!files.length) return;
     if (isSubmitting || isUploading || isGroupLoading) return;
+    if (isVideoTool) {
+      if (!selectedModel || !canAddVideoReference) return;
+      const issue = videoReferenceError(selectedModel, [...uploadedAssets, ...files.map(fileReference)], false);
+      if (issue) { setError(issue); return; }
+      setIsUploading(true);
+      setError(null);
+      // Sequential uploads bound memory and retain each completed upload if a
+      // later file fails. Model switching/submission stays disabled meanwhile.
+      try {
+        for (const file of files) {
+          const asset = await uploadService.uploadVideoReference(file, selectedModel.id);
+          setUploadedAssets(current => [...current, asset]);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "素材上传失败，已上传的素材已保留");
+      } finally { setIsUploading(false); }
+      return;
+    }
     const archives = files.filter((file) => /\.zip$/i.test(file.name) || /^(application\/zip|application\/x-zip-compressed)$/i.test(file.type));
     if (config.workType === "batch_edit" && archives.length) {
       if (files.length !== 1) {
@@ -673,6 +692,15 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
   };
 
   const addMaterialAssets = (assets: ImageAsset[]) => {
+    if (isUploading || isSubmitting) return;
+    if (isVideoTool) {
+      const existingIds = new Set(uploadedAssets.map(asset => asset.id));
+      const next = [...uploadedAssets, ...assets.filter(asset => !existingIds.has(asset.id))];
+      const issue = videoReferenceError(selectedModel, next, false);
+      if (issue) { setError(issue); return; }
+      setUploadedAssets(next);
+      return;
+    }
     setUploadedAssets((current) => {
       const existingIds = new Set(current.map((asset) => asset.id));
       const merged = [...current];
@@ -730,7 +758,8 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
   };
 
   const submitTask = async () => {
-    if (isImportingPrompts || isGroupLoading) return;
+    if (isImportingPrompts || isGroupLoading || isUploading || isSubmitting) return;
+    if (referenceError) { setError(referenceError); return; }
     setQuote(null);
     setPriceBreakdown("");
     if (!selectedModel || !resolution || !aspectRatio) return;
@@ -786,7 +815,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
         }
       }
       const payload = {
-        work_type: config.workType,
+        work_type: effectiveWorkType,
         prompts: importedBatch?.prompts,
         folder_names: importedBatch?.folderNames,
         batch_id: batchId,
@@ -940,6 +969,8 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
     selectedModel
     && hasPromptContent
     && (!isVideoTool || Boolean(duration))
+    && !referenceError
+    && !isUploading
     && (!config.needsUpload || (usesGroupPrompts ? batchGroups.length : uploadedAssets.length))
     && !isGroupLoading
     && !hasBatchGeneratePromptOverflow
@@ -982,11 +1013,9 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
           : batchEditPromptMode === "per_image"
           ? "一行对应一张上传图片，可从表格或文档直接复制粘贴\n第 1 张改成白底电商主图，保留商品材质\n第 2 张换成浅灰摄影棚背景，增加柔和阴影"
           : "把所有图片统一改成干净的白底电商主图，保留商品形状和材质，统一柔和阴影"
-        : config.workType === "text_to_video"
-          ? "描述镜头、主体动作、光影和氛围，例如：暖色傍晚的海浪轻拍沙滩，镜头缓慢推进，电影感"
-          : config.workType === "image_to_video"
-            ? "描述参考图如何动起来：镜头推进、人物微表情、产品旋转、背景光影变化等"
-            : "请输入要生成或修改的内容，提交时会原样发送给后端任务接口";
+        : isVideoTool
+          ? "描述主体、动作、镜头和声音；添加素材后，可以说明如何参考它们。例如：保持人物外观，镜头缓慢推进，背景配轻柔音乐。"
+          : "请输入要生成或修改的内容，提交时会原样发送给后端任务接口";
   const hasBatchOverflow = hasBatchGeneratePromptOverflow || hasBatchEditTaskOverflow;
   const quoteLabel = hasBatchOverflow
     ? `超出单次 ${config.workType === "batch_edit" ? batchEditTaskLimit : batchGenerateMaxTasks} 个任务限制`
@@ -1012,7 +1041,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
           : `${batchEditTaskCount} 张图片 x ${quote} 积分/张`
         : `上传图片后按 ${quote} 积分/张累计`
     : "";
-  const promptStepNumber = config.needsUpload ? 3 : 2;
+  const promptStepNumber = config.needsUpload || isVideoTool ? 3 : 2;
 
   return (
     <main className="page-surface creation-tool-page" data-mobile-panel={mobilePanel}>
@@ -1055,6 +1084,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
                 selectedModelId={selectedModelId}
                 onChange={selectGenerationModel}
                 isLoading={isLoadingModels}
+                disabled={isUploading || isSubmitting}
                 triggerClassName="model-select__trigger"
               />
             </div>
@@ -1173,20 +1203,8 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
             {isVideoTool ? (
               <div className="config-field config-field--aspect">
                 <span>{durationLabel}</span>
-                <div className="aspect-choice-grid" role="radiogroup" aria-label="选择时长">
-                  {(selectedModel?.supported_durations ?? []).map((option) => (
-                    <button
-                      className={option.value === duration ? "aspect-choice is-active" : "aspect-choice"}
-                      key={option.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={option.value === duration}
-                      onClick={() => setDuration(option.value)}
-                    >
-                      <strong>{option.label}</strong>
-                    </button>
-                  ))}
-                </div>
+                <VideoDurationPicker options={selectedModel?.supported_durations ?? []}
+                  value={duration} onChange={setDuration} disabled={isSubmitting} />
               </div>
             ) : null}
             {!isVideoTool ? <ImageOutputSettings model={selectedModel} outputFormat={outputFormat}
@@ -1344,29 +1362,29 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
           ) : null}
 
           {usesGroupPrompts ? <BatchGroupEditor groups={batchGroups} rows={mappedGroupRows} maxInputs={maxInputImages} maxOutputs={batchEditTaskLimit} disabled={isSubmitting} issues={batchGroupIssues} onGroupsChange={setBatchGroups} onRowsChange={setGroupPromptRows} onBusyChange={setIsGroupLoading} onError={setError} /> : null}
-          {config.needsUpload && !usesGroupPrompts ? (
+          {(config.needsUpload || isVideoTool) && !usesGroupPrompts ? (
             <div className="creation-tool-page__section">
               <div className="creation-tool-page__section-head">
                 <span>2</span>
                 <div>
-                  <strong>添加参考素材</strong>
-                  <small>{config.workType === "batch_edit" ? "上传散图，或导入 ZIP 按文件夹分组" : "上传图片或从素材库选择"}</small>
+                  <strong>添加参考素材{isVideoTool ? "（选填）" : ""}</strong>
+                  <small>{isVideoTool ? "不添加素材，直接按文字生成；添加后按素材和描述生成" : config.workType === "batch_edit" ? "上传散图，或导入 ZIP 按文件夹分组" : "上传图片或从素材库选择"}</small>
                 </div>
               </div>
             <div className="upload-source-panel">
               <label className="file-drop">
                 {isUploading || isGroupLoading ? <LoadingIndicator className="spin-icon" size={28} /> : <UploadCloud size={28} />}
-                <strong>{isGroupLoading ? "正在读取 ZIP，请稍候…" : uploadedAssets.length ? `已选择 ${uploadedAssets.length} 个素材` : config.workType === "batch_edit" ? "上传图片或 ZIP" : "上传图片素材"}</strong>
+                <strong>{isUploading ? "正在上传素材…" : isGroupLoading ? "正在读取 ZIP，请稍候…" : uploadedAssets.length ? `已选择 ${uploadedAssets.length} 个素材` : isVideoTool ? "上传参考素材" : config.workType === "batch_edit" ? "上传图片或 ZIP" : "上传图片素材"}</strong>
                 <span>
                   {isVideoTool
-                    ? `最多 ${maxInputImages || 1} 张；第 1 张为主图，其余为参考图`
+                    ? referenceHint(selectedModel)
                     : config.workType === "batch_edit"
                       ? usesMatrixPrompts
                         ? `每张商品图套用全部场景；图片数 × 场景数最多 ${batchEditMaxTasks} 个任务`
                         : `最多 ${batchEditMaxTasks} 张；每张图片会创建一条批量改图任务`
                     : "可以上传新图片，也可以从素材库直接选择"}
                 </span>
-                <input multiple={config.workType === "batch_edit" || maxInputImages !== 1} ref={fileInputRef} type="file" accept={config.workType === "batch_edit" ? "image/*,.zip,application/zip,application/x-zip-compressed" : "image/*"} aria-label={config.workType === "batch_edit" ? "上传批量改图图片或 ZIP" : "上传图片素材"} disabled={isUploading || isGroupLoading} onChange={uploadFiles} />
+                <input multiple={config.workType === "batch_edit" || maxInputImages !== 1} ref={fileInputRef} type="file" accept={isVideoTool ? videoCaps.mime_types.join(",") : config.workType === "batch_edit" ? "image/*,.zip,application/zip,application/x-zip-compressed" : "image/*"} aria-label={isVideoTool ? "上传参考素材（选填）" : config.workType === "batch_edit" ? "上传批量改图图片或 ZIP" : "上传图片素材"} disabled={isUploading || isGroupLoading || isSubmitting || (isVideoTool && !canAddVideoReference)} onChange={uploadFiles} />
               </label>
               {config.workType === "batch_edit" ? (
                 <>
@@ -1377,7 +1395,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
                   <input ref={batchZipInputRef} type="file" accept=".zip,application/zip,application/x-zip-compressed" hidden aria-label="从默认入口导入 ZIP" disabled={isUploading || isGroupLoading} onChange={uploadFiles} />
                 </>
               ) : null}
-              <Button variant="secondary" type="button" onClick={() => setIsMaterialPickerOpen(true)}>
+              <Button variant="secondary" type="button" disabled={isUploading || isSubmitting || (isVideoTool && !canAddVideoReference)} onClick={() => setIsMaterialPickerOpen(true)}>
                 <Image size={16} />
                 从素材库选择
               </Button>
@@ -1385,13 +1403,19 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
             </div>
           ) : null}
 
+          {isVideoTool && selectedModel && referenceError ? <p className="field-hint field-hint--error" role="alert">{referenceError}</p> : null}
+
           {uploadedAssets.length && !usesGroupPrompts ? (
             <div className={config.workType === "batch_edit" ? "asset-grid batch-edit-asset-grid" : "asset-grid"}>
               {uploadedAssets.map((asset, index) => (
                 <div className={config.workType === "batch_edit" ? "batch-edit-asset-item" : undefined} key={asset.id}>
                   <figure className="asset-preview-card">
-                    {previewErrorAssetIds.includes(asset.id) ? (
-                      <div className="asset-preview-card__fallback">图片无法预览</div>
+                    {asset.mime_type.startsWith("video/") ? (
+                      <video src={resolveAssetUrl(asset.url)} controls preload="metadata" aria-label={`视频素材 ${index + 1}`} />
+                    ) : asset.mime_type.startsWith("audio/") ? (
+                      <div className="asset-preview-card__audio"><audio src={resolveAssetUrl(asset.url)} controls preload="metadata" aria-label={`音频素材 ${index + 1}`} /></div>
+                    ) : previewErrorAssetIds.includes(asset.id) ? (
+                      <div className="asset-preview-card__fallback">素材无法预览</div>
                     ) : (
                       <img
                         src={resolveAssetUrl(asset.url)}
@@ -1400,15 +1424,15 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
                       />
                     )}
                     <span className="asset-preview-card__index">
-                      {isVideoTool ? (index === 0 ? "主图" : `参考 ${index}`) : `图片 ${index + 1}`}
+                      {isVideoTool ? (videoCaps.frame_order ? index === 0 ? "首帧" : "尾帧" : `${mediaKindLabel(asset.mime_type)} ${index + 1}`) : `图片 ${index + 1}`}
                     </span>
-                    {config.workType === "batch_edit" ? (
-                      <div className="batch-edit-asset-order" aria-label={`调整图片 ${index + 1} 顺序`}>
-                        <button type="button" aria-label="上移图片" disabled={index === 0} onClick={() => moveUploadedAsset(asset.id, -1)}><ChevronUp size={14} /></button>
-                        <button type="button" aria-label="下移图片" disabled={index === uploadedAssets.length - 1} onClick={() => moveUploadedAsset(asset.id, 1)}><ChevronDown size={14} /></button>
+                    {config.workType === "batch_edit" || isVideoTool ? (
+                      <div className={isVideoTool ? "batch-edit-asset-order video-reference-order" : "batch-edit-asset-order"} aria-label={`调整素材 ${index + 1} 顺序`}>
+                        <button type="button" aria-label={isVideoTool ? "上移素材" : "上移图片"} disabled={index === 0 || isUploading || isSubmitting} onClick={() => moveUploadedAsset(asset.id, -1)}><ChevronUp size={14} /></button>
+                        <button type="button" aria-label={isVideoTool ? "下移素材" : "下移图片"} disabled={index === uploadedAssets.length - 1 || isUploading || isSubmitting} onClick={() => moveUploadedAsset(asset.id, 1)}><ChevronDown size={14} /></button>
                       </div>
                     ) : null}
-                    <button className="asset-preview-card__remove" type="button" aria-label="移除" onClick={() => removeUpload(asset.id)}>
+                    <button className="asset-preview-card__remove" type="button" aria-label="移除" disabled={isUploading || isSubmitting} onClick={() => removeUpload(asset.id)}>
                       <X size={14} />
                     </button>
                     <figcaption>
@@ -1416,7 +1440,7 @@ const RealToolPage = ({ config }: { config: ToolConfig }) => {
                         {config.workType === "batch_edit"
                           ? `图片 ${index + 1}`
                           : isVideoTool
-                            ? (index === 0 ? "主图（image）" : `参考图 ${index}`)
+                            ? `${mediaKindLabel(asset.mime_type)}参考 ${index + 1}`
                             : `Asset #${asset.id}`}
                       </strong>
                       <span>{asset.width && asset.height ? `${asset.width} x ${asset.height}` : asset.mime_type}</span>

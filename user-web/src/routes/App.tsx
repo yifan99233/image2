@@ -78,8 +78,9 @@ export const App = () => {
           <Route path="/create/cutout" element={<CutoutPage />} />
           <Route path="/create/edit" element={<WorkbenchPage />} />
           <Route path="/create/text-to-image" element={<CreativeToolPage mode="text-to-image" />} />
-          <Route path="/create/text-to-video" element={<CreativeToolPage mode="text-to-video" />} />
-          <Route path="/create/image-to-video" element={<CreativeToolPage mode="image-to-video" />} />
+          <Route path="/create/video" element={<CreativeToolPage mode="video" />} />
+          <Route path="/create/text-to-video" element={<Navigate to="/create/video" replace />} />
+          <Route path="/create/image-to-video" element={<Navigate to="/create/video" replace />} />
           <Route path="/create/batch-generate" element={<CreativeToolPage mode="batch-generate" />} />
           <Route path="/create/batch-edit" element={<CreativeToolPage mode="batch-edit" />} />
           <Route path="/materials" element={<MaterialLibraryPage />} />

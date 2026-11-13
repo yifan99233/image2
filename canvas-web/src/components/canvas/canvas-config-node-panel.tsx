@@ -45,7 +45,7 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, onConfigC
                         className="canvas-config-mode !rounded-md !p-0.5"
                         value={mode}
                         onChange={(value) => onConfigChange(node.id, { generationMode: value as CanvasGenerationMode })}
-                        options={[{ value: "image", label: "生图" }]}
+                        options={[{ value: "image", label: "生图" }, { value: "video", label: "视频" }]}
                     />
                 </div>
             </div>

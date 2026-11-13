@@ -1,3 +1,4 @@
+import { cloudCanvasDocument } from "./cloudDocument";
 import { canvasService } from "@/services/canvas";
 import { modelService } from "@/services/models";
 import { imageTaskService } from "@/services/imageTasks";
@@ -24,9 +25,14 @@ export function createCanvasHost() {
     [asset.url, asset.local_url].filter(Boolean).forEach((url) => assets.set(url!, asset));
     return toCanvasAsset(asset);
   };
+  const workType = (model: CanvasModel, input: GenerationInput) => model.capability_type === "video"
+    ? (input.references.length ? "image_to_video" : "text_to_video")
+    : (input.references.length ? "image_edit" : "text_to_image");
   const validateGeneration = (input: GenerationInput) => {
     const model = models.find((item) => item.id === input.modelId);
     if (!model) throw new Error("模型已不可用，请重新加载画布");
+    if (!model.supported_work_types?.includes(workType(model, input))) throw new Error(input.references.length ? "当前模型不支持参考图生成，请切换模型" : "当前模型需要参考图，请连接图片节点");
+    if (model.capability_type === "video" && (input.count !== 1 || !model.supported_durations?.some((option) => option.value === input.duration))) throw new Error("请选择有效的视频时长，每次生成一个视频");
     if (!input.prompt?.trim()) throw new Error("请输入提示词");
     if (!Number.isInteger(input.count) || input.count < 1 || input.count > model.max_output_images) throw new Error("生成张数超出模型支持范围");
     if (input.references.length > model.max_input_images) throw new Error(`当前模型最多支持 ${model.max_input_images} 张参考图`);
@@ -37,13 +43,19 @@ export function createCanvasHost() {
     async bootstrap() {
       const user = useAuthStore.getState().user;
       if (!user) throw new Error("请先登录");
-      const lists = await Promise.all([modelService.getModels("text_to_image"), modelService.getModels("image_edit")]);
-      models = [...new Map(lists.flat().map((model) => [model.id, model])).values()].filter((model) => !('capability_type' in model) || model.capability_type !== "video");
+      const workTypes = ["text_to_image", "image_edit", "text_to_video", "image_to_video"];
+      const lists = await Promise.all(workTypes.map((type) => modelService.getModels(type)));
+      const available = new Map<number, CanvasModel>();
+      lists.forEach((list, index) => list.forEach((model) => {
+        const previous = available.get(model.id);
+        available.set(model.id, { ...model, supported_work_types: [...(previous?.supported_work_types || []), workTypes[index]] });
+      }));
+      models = [...available.values()];
       return { models, userId: user.id, theme: useThemeStore.getState().themeMode };
     },
     "projects.list": canvasService.list,
     "projects.get": ({ id }) => canvasService.get(id),
-    "projects.save": canvasService.save,
+    "projects.save": (input) => canvasService.save({ ...input, document: cloudCanvasDocument(input.document) }),
     "projects.delete": ({ id, revision }) => canvasService.remove(id, revision),
     async "assets.upload"({ file }) {
       if (!(file instanceof File)) throw new Error("图片文件无效");
@@ -66,13 +78,13 @@ export function createCanvasHost() {
       return null;
     },
     async "generation.quote"(input) {
-      validateGeneration(input);
-      return modelService.quote(input.modelId, input.references.length ? "image_edit" : "text_to_image", input.resolution, input.aspectRatio, input.count, undefined, input.quality);
+      const model = validateGeneration(input);
+      return modelService.quote(input.modelId, workType(model, input), input.resolution, input.aspectRatio, input.count, input.duration, input.quality);
     },
     async "generation.create"(input) {
-      validateGeneration(input);
+      const model = validateGeneration(input);
       const payload = {
-        model_id: input.modelId, prompt: input.prompt, work_type: input.references.length ? "image_edit" : "text_to_image",
+        model_id: input.modelId, prompt: input.prompt, work_type: workType(model, input), duration: input.duration,
         resolution: input.resolution, aspect_ratio: input.aspectRatio, quality: input.quality,
         output_count: input.count, input_image_ids: [], input_image_urls: input.references,
       };

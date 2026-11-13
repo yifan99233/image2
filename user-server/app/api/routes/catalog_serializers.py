@@ -11,6 +11,9 @@ USER_IMAGE_TASK_FAILURE_MESSAGE = "生成失败 积分已退还 请重新生成"
 
 def guess_asset_mime_type(url: str | None) -> str:
     path = urlparse((url or "").strip()).path.lower()
+    for extension, mime in ((".mp3", "audio/mpeg"), (".wav", "audio/wav"), (".m4a", "audio/mp4"), (".ogg", "audio/ogg")):
+        if path.endswith(extension):
+            return mime
     if path.endswith(".webm"):
         return "video/webm"
     if path.endswith(".mov"):

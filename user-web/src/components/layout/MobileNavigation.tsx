@@ -16,8 +16,8 @@ export function MobileNavigation({ enabledModules, onOpenMenu, menuOpen }: Props
     ["text_to_image", "/create/text-to-image"],
     ["batch_generate", "/create/batch-generate"],
     ["batch_edit", "/create/batch-edit"],
-    ["text_to_video", "/create/text-to-video"],
-    ["image_to_video", "/create/image-to-video"],
+    ["text_to_video", "/create/video"],
+    ["image_to_video", "/create/video"],
   ].find(([module]) => modules.has(module))?.[1];
   const links = [
     ...(modules.has("dashboard")

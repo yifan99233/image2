@@ -1,7 +1,7 @@
 // Shared with user-web. Keep this file independent of either application's aliases.
 export const CANVAS_CHANNEL = "image2-canvas-v1";
 export type CanvasModel = {
-    id: number; name: string; work_type: string; max_input_images: number; max_output_images: number;
+    id: number; name: string; work_type: string; capability_type?: string; supported_work_types?: string[]; supported_durations?: { value: string; label: string }[]; max_input_images: number; max_output_images: number;
     supported_resolutions: { value: string; label: string }[];
     supported_aspect_ratios: { value: string; label: string }[];
 };
@@ -11,6 +11,7 @@ export type ProjectRecord = ProjectSummary & { document: Record<string, unknown>
 export type ProjectSave = { id: string; title: string; revision: number; mutation_id: string; document: Record<string, unknown> };
 export type GenerationInput = {
     modelId: number; prompt: string; resolution: string; aspectRatio: string;
+    duration?: string;
     quality: "auto" | "high" | "medium" | "low"; count: number; references: string[];
 };
 export type TaskResult = { id: number; status: string; error?: string | null; assets: CanvasAsset[] };

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from pydantic import BaseModel, Field
-from sqlalchemy import BigInteger, Boolean, Column, MetaData, String, Table, select
+from sqlalchemy import BigInteger, Boolean, Column, Integer, MetaData, String, Table, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -14,6 +14,7 @@ from app.services.image_uploads import (
     effective_asset_url,
     prepare_r2_upload,
     save_uploaded_image,
+    save_uploaded_video_reference,
     save_uploaded_r2_image,
 )
 
@@ -28,6 +29,10 @@ image_models_table = Table(
     Column("site_id", BigInteger),
     Column("storage_mode", String),
     Column("is_active", Boolean),
+    Column("is_public", Boolean),
+    Column("vendor_model", String),
+    Column("work_type", String),
+    Column("max_input_images", Integer),
 )
 
 
@@ -95,6 +100,36 @@ async def upload_image(
         current_user=current_user,
         upload=image,
         qiniu_storage_enabled=qiniu_storage_enabled,
+    )
+    return ok(to_image_asset_out(asset), "上传成功")
+
+
+@router.post("/video-references", response_model=StandardResponse[ImageAssetOut])
+async def upload_video_reference(
+    file: UploadFile = File(...),
+    model_id: int = Form(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StandardResponse[ImageAssetOut]:
+    from app.services.video_references import video_reference_capabilities
+    from app.services.model_cdn import for_model
+
+    model = (await db.execute(select(image_models_table).where(
+        image_models_table.c.id == model_id,
+        image_models_table.c.site_id == current_user.site_id,
+        image_models_table.c.is_active.is_(True),
+        or_(image_models_table.c.is_public.is_(True), bool(getattr(current_user, "is_internal", False))),
+    ))).first()
+    if model is None:
+        raise BusinessError("模型不存在或当前站点不可用", code=40430, status_code=404)
+    if "image_to_video" not in {part.strip() for part in str(model.work_type or "").split(",")}:
+        raise BusinessError("当前模型不支持参考素材", code=40022)
+    mode = str(model.storage_mode or "").strip().lower()
+    asset = await save_uploaded_video_reference(
+        db=db, current_user=current_user, upload=file,
+        capabilities=video_reference_capabilities(model.vendor_model, int(model.max_input_images or 0)),
+        model_cdn=for_model(current_user.site_id, model_id),
+        qiniu_storage_enabled=True if mode == "third_party" else False if mode == "local" else None,
     )
     return ok(to_image_asset_out(asset), "上传成功")
 

@@ -1246,6 +1246,11 @@ def test_extract_media_url_prefers_gateway_content_url():
     assert image_generation._extract_media_url(payload) == payload["content_url"]
 
 
+def test_extract_media_url_rejects_provider_failure_text():
+    assert image_generation._extract_media_url({"status": "failed", "url": "视频任务失败"}) is None
+    assert image_generation._extract_media_url({"status": "failed", "url": "failed"}) is None
+
+
 def test_download_video_forwards_provider_authorization(monkeypatch):
     captured: dict[str, str | None] = {}
 
@@ -1284,6 +1289,75 @@ def test_download_video_forwards_provider_authorization(monkeypatch):
 
     assert captured["authorization"] == "Bearer test-key"
     assert result.content == b"video"
+
+
+def test_download_video_retries_transient_gateway_errors(monkeypatch):
+    attempts = 0
+
+    class FakeHeaders:
+        @staticmethod
+        def get_content_type():
+            return "video/mp4"
+
+    class FakeResponse:
+        headers = FakeHeaders()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        @staticmethod
+        def read():
+            return b"video"
+
+    def fake_urlopen(_request, timeout):
+        nonlocal attempts
+        attempts += 1
+        assert timeout == 30
+        if attempts < 3:
+            raise image_generation.urllib.error.HTTPError(
+                "https://cdn.example/video.mp4",
+                502,
+                "Bad Gateway",
+                hdrs=None,
+                fp=None,
+            )
+        return FakeResponse()
+
+    monkeypatch.setattr(image_generation.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(image_generation, "sleep", lambda _delay: None)
+
+    result = image_generation._download_video("https://cdn.example/video.mp4", 30)
+
+    assert attempts == 3
+    assert result.content == b"video"
+
+
+def test_download_video_reports_gateway_error_after_retry_budget(monkeypatch):
+    attempts = 0
+
+    def fake_urlopen(_request, timeout):
+        nonlocal attempts
+        attempts += 1
+        assert timeout == 30
+        raise image_generation.urllib.error.HTTPError(
+            "https://cdn.example/video.mp4",
+            502,
+            "Bad Gateway",
+            hdrs=None,
+            fp=None,
+        )
+
+    monkeypatch.setattr(image_generation.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(image_generation, "sleep", lambda _delay: None)
+
+    with pytest.raises(BusinessError, match="下载生成视频失败: HTTP Error 502") as exc_info:
+        image_generation._download_video("https://cdn.example/video.mp4", 30)
+
+    assert attempts == 4
+    assert exc_info.value.code == 50220
 
 
 def test_adobe_video_request_uses_newapi_reference_contract():
@@ -1382,6 +1456,52 @@ def test_generate_video_uses_newapi_content_route_for_adobe_result(monkeypatch):
 
     assert downloaded == ["https://newapi.example/v1/videos/video-123/content"]
     assert download_headers[0]["Authorization"] == "Bearer test-key"
+    assert result.source_url == downloaded[0]
+
+
+def test_generate_video_uses_task_content_route_for_muse_result(monkeypatch):
+    downloaded: list[str] = []
+    monkeypatch.setattr(
+        image_generation,
+        "_post_json",
+        lambda *_args, **_kwargs: {"id": "muse-video-123", "status": "queued"},
+    )
+    monkeypatch.setattr(
+        image_generation,
+        "_poll_video_job",
+        lambda *_args, **_kwargs: {
+            "id": "muse-video-123",
+            "status": "completed",
+            "url": "/images/muse-video-123.mp4",
+        },
+    )
+
+    def fake_download(url, _timeout, request_headers=None):
+        _ = request_headers
+        downloaded.append(url)
+        return image_generation.GeneratedImage(content=b"video", mime_type="video/mp4", source_url=url)
+
+    monkeypatch.setattr(image_generation, "_download_video", fake_download)
+    config = GenerationModelConfig(
+        "muse",
+        "Muse2API",
+        "https://muse-node.example/v1",
+        "api",
+        "test-key",
+        "bearer",
+        180,
+        "muse-video",
+    )
+
+    result = image_generation.generate_video(
+        config,
+        "a calm ocean wave",
+        resolution="720p",
+        duration="6",
+        aspect_ratio="16:9",
+    )
+
+    assert downloaded == ["https://muse-node.example/v1/videos/muse-video-123/content"]
     assert result.source_url == downloaded[0]
 
 
@@ -1510,6 +1630,25 @@ def test_normalize_video_duration_rejects_out_of_range():
     with pytest.raises(BusinessError):
         image_generation._normalize_video_duration_seconds("0")
     assert image_generation._normalize_video_duration_seconds("15s") == 15
+
+
+def test_poll_video_job_checks_failure_before_url_extraction(monkeypatch):
+    import pytest
+    from app.core.exceptions import BusinessError
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return '{"status":"failed","url":"视频任务失败"}'.encode()
+
+    monkeypatch.setattr(image_generation.urllib.request, "urlopen", lambda *a, **k: FakeResponse())
+    with pytest.raises(BusinessError, match="视频任务失败"):
+        image_generation._poll_video_job("https://example/v1/videos/x", {}, 30)
 
 
 def test_poll_video_job_treats_expired_as_failure(monkeypatch):

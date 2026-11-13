@@ -1,0 +1,14 @@
+.video-duration-picker { border: 0; margin: 0; padding: 4px; min-width: 0; width: 100%; color: inherit; }
+.video-duration-picker legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.video-duration-picker__heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; font-size: 13px; }
+.video-duration-picker__heading output { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.video-duration-picker input[type="range"] { display: block; width: 100%; margin: 8px 0 18px; accent-color: var(--primary, #6461e9); cursor: pointer; }
+.video-duration-picker__options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.video-duration-picker .video-duration-picker__options button { display: block; width: 100%; min-height: 36px; padding: 7px 4px; border: 1px solid var(--border, #dfe2e8); border-radius: 9px; background: transparent; color: inherit; text-align: center; font-size: 12px; cursor: pointer; }
+.video-duration-picker .video-duration-picker__options button:hover { border-color: #9694ed; background: rgba(100, 97, 233, .05); }
+.video-duration-picker .video-duration-picker__options button.is-selected { color: var(--primary, #514dc7); border-color: #7773e5; background: rgba(100, 97, 233, .1); font-weight: 650; }
+.video-duration-picker :is(button, input):focus-visible { outline: 2px solid #7773e5; outline-offset: 3px; }
+.video-duration-picker:disabled { opacity: .55; }
+.video-duration-picker:disabled :is(button, input) { cursor: not-allowed; }
+.video-duration-picker small, .video-duration-picker__empty { display: block; margin-top: 12px; color: var(--text-muted, #7c8190); font-size: 11px; }
+.gi-duration-menu { width: 280px; max-width: calc(100vw - 40px); padding: 14px !important; }

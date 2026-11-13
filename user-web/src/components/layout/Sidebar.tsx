@@ -56,7 +56,9 @@ export const Sidebar = ({ collapsed, mobileOpen = false, onToggle, onNavigate }:
       <nav className="sidebar__nav" aria-label="主导航">
         {navigationGroups.map((group) => {
           if (group.moduleKey && !enabledModules.has(group.moduleKey)) return null;
-          const visibleItems = group.items.filter((item) => !item.moduleKey || enabledModules.has(item.moduleKey));
+          const visibleItems = group.items.filter((item) => item.anyModuleKeys
+            ? item.anyModuleKeys.some((key) => enabledModules.has(key))
+            : !item.moduleKey || enabledModules.has(item.moduleKey));
           if (!visibleItems.length) return null;
           const isGroupCollapsed = !collapsed && collapsedGroups.includes(group.label);
 

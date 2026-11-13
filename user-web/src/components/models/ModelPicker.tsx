@@ -192,7 +192,11 @@ export const ModelPicker = ({
                           {stateLabels.map((stateLabel) => (
                             <span className="model-picker__state" key={stateLabel}>{stateLabel}</span>
                           ))}
-                          <span className="model-picker__spec">最多 {model.max_input_images} 张输入图</span>
+                          <span className="model-picker__spec">{model.reference_capabilities
+                            ? model.supported_work_types?.includes("image_to_video") === false
+                              ? "仅文字生成视频"
+                              : `最多 ${model.reference_capabilities.max_total} 个参考素材`
+                            : `最多 ${model.max_input_images} 张输入图`}</span>
                           <span className="model-picker__spec">{model.supported_aspect_ratios.length} 种画幅</span>
                           <span className="model-picker__spec">{model.supported_resolutions.length} 档清晰度</span>
                           {model.supported_durations?.length ? <span className="model-picker__spec">{model.supported_durations.length} 档时长</span> : null}

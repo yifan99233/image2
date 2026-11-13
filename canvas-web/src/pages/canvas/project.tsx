@@ -356,13 +356,16 @@ function InfiniteCanvasPage() {
     const completeVideoNodeTask = useCallback(
         async (nodeId: string, config: Parameters<typeof buildGenerationConfig>[0], prompt: string, images: Parameters<typeof createVideoGenerationTask>[2], signal: AbortSignal, extra: CanvasNodeData["metadata"] = {}, videos: ReferenceVideo[] = [], audios: ReferenceAudio[] = []) => {
             const task = await createVideoGenerationTask(config, prompt, images, { signal, videos, audios });
-            if (task.provider !== "plugin") {
-                setNodes((prev) => prev.map((item) => (item.id === nodeId ? { ...item, metadata: { ...item.metadata, videoTaskId: task.id, videoTaskProvider: task.provider === "gemini" ? "gemini" : "openai", model: config.model } } : item)));
-            }
+            const active = loadedProjectId.current === projectId;
+            const source = active ? nodesRef.current : useCanvasStore.getState().openProject(projectId)?.nodes || [];
+            const next = source.map((item) => item.id === nodeId ? { ...item, metadata: { ...item.metadata, videoTaskId: task.id, videoTaskProvider: "openai" as const, model: config.model } } : item);
+            if (active) { nodesRef.current = next; setNodes(next); }
+            updateProject(projectId, { nodes: next });
+            await flushProject(projectId);
             const video = await storeGeneratedVideo(await waitForVideoGenerationTask(config, task, { signal }));
             setNodes((prev) => prev.map((item) => (item.id === nodeId ? applyGeneratedVideo(item, video, { prompt, model: config.model, ...extra }) : item)));
         },
-        [],
+        [projectId, updateProject],
     );
 
     const pollVideoNodeTask = useCallback(
@@ -2150,13 +2153,17 @@ function InfiniteCanvasPage() {
 
     const handleUploadRequest = useCallback((nodeId?: string, position?: Position) => {
         uploadTargetRef.current = { nodeId, position };
-        imageInputRef.current?.click();
+        if (imageInputRef.current) {
+            const target = nodesRef.current.find((node) => node.id === nodeId);
+            imageInputRef.current.accept = target?.type === CanvasNodeType.Audio ? "audio/*" : "image/jpeg,image/png,image/webp,video/*,audio/*";
+            imageInputRef.current.click();
+        }
     }, []);
 
     const handleImageInputChange = useCallback(
         async (event: ReactChangeEvent<HTMLInputElement>) => {
             const files = Array.from(event.target.files || []).filter(
-                (f) => f.type.startsWith("image/"),
+                (f) => f.type.startsWith("image/") || f.type.startsWith("video/") || isAudioFile(f),
             );
             if (!files.length) {
                 uploadTargetRef.current = null;
@@ -2289,7 +2296,7 @@ function InfiniteCanvasPage() {
         (event: ReactDragEvent<HTMLDivElement>) => {
             event.preventDefault();
             const files = Array.from(event.dataTransfer.files).filter(
-                (item) => item.type.startsWith("image/"),
+                (item) => item.type.startsWith("image/") || item.type.startsWith("video/") || isAudioFile(item),
             );
             if (!files.length) return;
 
@@ -3081,6 +3088,12 @@ function InfiniteCanvasPage() {
         (panelNode: CanvasNodeData) =>
             getNodeDefinition(panelNode.type)?.Panel ? (
                 renderPluginPanel(panelNode)
+            ) : panelNode.type === CanvasNodeType.Audio ? (
+                <div className="rounded-2xl border p-4 shadow-xl" style={{ background: theme.toolbar.panel, color: theme.node.text, borderColor: theme.node.stroke }} onPointerDown={(event) => event.stopPropagation()}>
+                    <p className="text-sm">音频参考</p>
+                    <p className="mt-2 text-sm opacity-70">上传音频后，将节点连接到视频生成节点作为参考。是否支持取决于所选模型。</p>
+                    <Button className="mt-3" onClick={() => handleUploadRequest(panelNode.id)}>上传或替换音频</Button>
+                </div>
             ) : panelNode.type === CanvasNodeType.Config ? (
                 <CanvasConfigComposer
                     nodeId={panelNode.id}
@@ -3106,14 +3119,14 @@ function InfiniteCanvasPage() {
                     onStop={confirmStopGeneration}
                     onDisconnectReference={disconnectNodeReference}
                     onStartReferenceSelection={startNodeReferenceSelection}
-                    modeOverride="image"
+                    modeOverride={panelNode.type === CanvasNodeType.Video ? "video" : "image"}
                     onImageSettingsOpenChange={(open) => {
                         setNodeImageSettingsOpen(open);
                         if (open) setToolbarNodeId(null);
                     }}
                 />
             ),
-        [configInputsById, confirmStopGeneration, connectedNodesByNodeId, disconnectNodeReference, handleConfigNodeChange, handleGenerateNode, handleNodePromptChange, mentionReferencesByNodeId, nodes, renderPluginPanel, runningNodeId, startNodeReferenceSelection],
+        [configInputsById, confirmStopGeneration, connectedNodesByNodeId, disconnectNodeReference, handleConfigNodeChange, handleGenerateNode, handleNodePromptChange, handleUploadRequest, mentionReferencesByNodeId, nodes, renderPluginPanel, runningNodeId, startNodeReferenceSelection, theme],
     );
 
     const renderNodeContentPanel = useCallback(
@@ -3378,7 +3391,7 @@ function InfiniteCanvasPage() {
                     />
                 ) : null}
 
-                <input ref={imageInputRef} type="file" multiple accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleImageInputChange} />
+                <input ref={imageInputRef} type="file" multiple accept="image/jpeg,image/png,image/webp,video/*,audio/*" className="hidden" onChange={handleImageInputChange} />
 
                 <CanvasNodeInfoModal node={infoNode} open={Boolean(infoNode)} onClose={() => setInfoNodeId(null)} />
 

@@ -25,10 +25,12 @@ export function HostShell() {
             setHostModels(result.models);
             useThemeStore.getState().setTheme(result.theme);
             const modelOptions = result.models.map((model) => `image2::${model.id}`);
+            const imageModels = result.models.filter((model) => model.capability_type !== "video").map((model) => `image2::${model.id}`);
+            const videoModels = result.models.filter((model) => model.capability_type === "video").map((model) => `image2::${model.id}`);
             useConfigStore.setState((state) => ({ config: {
                 ...state.config, baseUrl: "", apiKey: "", proxyEnabled: false, models: modelOptions,
-                channels: [{ id: "image2", name: "本站模型", baseUrl: "", apiKey: "", apiFormat: "openai", models: result.models.map((model) => ({ name: String(model.id), capability: "image" })) }],
-                model: modelOptions[0] || "", imageModel: modelOptions[0] || "", textModel: "", videoModel: "", audioModel: "", count: "1", canvasImageCount: "1",
+                channels: [{ id: "image2", name: "本站模型", baseUrl: "", apiKey: "", apiFormat: "openai", models: result.models.map((model) => ({ name: String(model.id), capability: model.capability_type === "video" ? "video" : "image" })) }],
+                model: imageModels[0] || "", imageModel: imageModels[0] || "", textModel: "", videoModel: videoModels[0] || "", audioModel: "", count: "1", canvasImageCount: "1",
             } }));
             await useCanvasStore.getState().loadMore();
             if (!ignore) setBooted(true);

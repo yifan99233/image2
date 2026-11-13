@@ -46,6 +46,10 @@ MIME_TO_EXTENSION = {
     "video/webm": ".webm",
     "video/quicktime": ".mov",
     "video/x-m4v": ".m4v",
+    "audio/mpeg": ".mp3",
+    "audio/wav": ".wav",
+    "audio/mp4": ".m4a",
+    "audio/ogg": ".ogg",
 }
 
 VIDEO_MIME_TYPES = {
@@ -773,10 +777,11 @@ async def _save_uploaded_content(
     local_backup_only: bool = False,
     model_cdn=None,
     qiniu_storage_enabled: bool | None = None,
+    reference_metadata: ImageMetadata | None = None,
 ) -> ImageAsset:
     from app.api.routes.ux import get_qiniu_storage_enabled
 
-    metadata = _validate_uploaded_content(
+    metadata = reference_metadata or _validate_uploaded_content(
         content=content,
         original_filename=original_filename,
         submitted_mime_type=submitted_mime_type,
@@ -882,6 +887,23 @@ async def save_uploaded_image(
         original_filename=upload.filename or "",
         submitted_mime_type=upload.content_type or "",
         qiniu_storage_enabled=qiniu_storage_enabled,
+    )
+
+
+async def save_uploaded_video_reference(*, db, current_user, upload, capabilities, model_cdn=None, qiniu_storage_enabled=None):
+    from app.services.video_references import inspect_reference, validate_video_references
+
+    limit = max(capabilities["max_bytes_by_kind"].values(), default=0)
+    content = await upload.read(limit + 1)
+    if len(content) > limit:
+        raise BusinessError(f"素材不能超过 {limit // (1024 * 1024)}MB", code=40021)
+    mime, width, height = inspect_reference(content)
+    validate_video_references([(mime, len(content))], capabilities, complete=False)
+    return await _save_uploaded_content(
+        db=db, current_user=current_user, content=content,
+        original_filename=upload.filename or "", submitted_mime_type=mime,
+        reference_metadata=ImageMetadata(width=width, height=height, mime_type=mime),
+        model_cdn=model_cdn, qiniu_storage_enabled=qiniu_storage_enabled,
     )
 
 

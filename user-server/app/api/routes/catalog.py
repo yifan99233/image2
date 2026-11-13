@@ -27,11 +27,13 @@ from app.api.routes.catalog_serializers import USER_IMAGE_TASK_FAILURE_MESSAGE, 
 from app.api.routes.ux import get_max_batch_tasks, get_qiniu_storage_enabled
 from app.core.config import settings
 from app.core.exceptions import BusinessError
+from app.services.video_references import video_reference_capabilities, validate_video_references
 from app.core.responses import StandardResponse, ok
 from app.db.session import AsyncSessionLocal, get_db
 from app.models.credit import CreditLedger, UserCreditAccount
 from app.models.user import User
 from app.models.image_asset import ImageAsset
+from app.services.video_duration import normalize_video_duration_seconds
 from app.services.customer_pricing import customer_price
 from app.services.asset_urls import asset_url_variants
 from app.services.image_generation import (
@@ -447,6 +449,8 @@ image_assets_table = Table(
     Column("id", BigInteger),
     Column("site_id", BigInteger),
     Column("user_id", BigInteger),
+    Column("mime_type", String),
+    Column("size_bytes", BigInteger),
     Column("url", String),
     Column("local_url", String),
     Column("r2_url", String),
@@ -533,6 +537,8 @@ image_model_prices_table = Table(
 
 def requested_work_types(work_type: str) -> list[str]:
     normalized = work_type.strip()
+    if normalized == "video":
+        return ["text_to_video", "image_to_video"]
     if normalized == "image_edit":
         return ["image_to_image", "image_edit"]
     if normalized == "batch_generate":
@@ -592,26 +598,38 @@ async def resolve_input_image_urls(
     user_id: int,
     payload: dict,
     max_input_images: int,
+    video_capabilities: dict | None = None,
 ) -> list[str]:
     # Uploaded assets are identified by their database IDs. The web client also
     # sends their URLs so URL-only callers (such as the canvas) remain
     # supported, but a display/CDN URL is not authoritative when an owned ID is
     # present: its hostname can legitimately change between upload and submit.
+    def validate_assets(rows):
+        refs = [(getattr(row, "mime_type", "image/png"), int(getattr(row, "size_bytes", 0) or 0)) for row in rows]
+        if video_capabilities is not None:
+            validate_video_references(refs, video_capabilities)
+        elif any(not mime.startswith("image/") for mime, _ in refs):
+            raise BusinessError("图片任务仅支持图片素材", code=40022)
+
     input_image_ids = [
         int(asset_id)
         for asset_id in payload.get("input_image_ids") or []
         if int(asset_id) > 0
     ]
+    if len(set(input_image_ids)) != len(input_image_ids):
+        raise BusinessError("请勿重复添加同一个素材", code=40001)
     if len(input_image_ids) > max_input_images:
         raise BusinessError(code=40001, message=f"当前模型最多支持 {max_input_images} 张输入图")
     if input_image_ids:
         rows = await db.execute(
-            select(image_assets_table.c.id, image_assets_table.c.url, image_assets_table.c.local_url).where(
+            select(image_assets_table.c.id, image_assets_table.c.url, image_assets_table.c.local_url,
+                   image_assets_table.c.mime_type, image_assets_table.c.size_bytes).where(
                 image_assets_table.c.id.in_(input_image_ids),
                 image_assets_table.c.site_id == site_id,
                 image_assets_table.c.user_id == user_id,
             )
         )
+        rows = list(rows)
         url_by_id = {
             int(row.id): getattr(row, "url", None) or row.local_url
             for row in rows
@@ -620,6 +638,7 @@ async def resolve_input_image_urls(
         missing_ids = [asset_id for asset_id in input_image_ids if asset_id not in url_by_id]
         if missing_ids:
             raise BusinessError(code=40420, message="包含不存在的输入图片", status_code=404)
+        validate_assets(rows)
         return [url_by_id[asset_id] for asset_id in input_image_ids]
 
     submitted_urls = [
@@ -642,6 +661,8 @@ async def resolve_input_image_urls(
                 image_assets_table.c.url,
                 image_assets_table.c.local_url,
                 image_assets_table.c.r2_url,
+                image_assets_table.c.mime_type,
+                image_assets_table.c.size_bytes,
             ).where(
                 or_(
                     image_assets_table.c.url.in_(lookup_urls),
@@ -667,6 +688,11 @@ async def resolve_input_image_urls(
         missing_urls = [url for url in submitted_urls if url not in owned_urls]
         if missing_urls:
             raise BusinessError(code=40420, message="包含不存在的输入图片", status_code=404)
+        # Validate each submitted reference, including aliases of an owned URL.
+        rows_by_url = {variant: row for row in rows for value in
+                       (getattr(row, "url", None), getattr(row, "local_url", None), getattr(row, "r2_url", None))
+                       if value for variant in asset_url_variants(str(value))}
+        validate_assets([rows_by_url[url] for url in submitted_urls])
         browser_by_submitted_url = {
             variant: str(getattr(row, "url", None) or row.local_url)
             for row in rows
@@ -998,6 +1024,7 @@ async def generation_model_config(
             image_model_providers_table.c.auth_type,
             image_model_providers_table.c.encrypted_api_key,
             image_model_providers_table.c.is_active,
+            image_models_table.c.storage_mode,
         )
         .select_from(image_models_table.join(image_model_providers_table, image_models_table.c.provider_id == image_model_providers_table.c.id))
         .where(
@@ -1029,6 +1056,7 @@ async def generation_model_config(
             if task_disable_retry is not None
             else row.model_disable_retry
         ),
+        storage_mode=normalize_storage_mode(row.storage_mode),
     )
 
 
@@ -2500,6 +2528,8 @@ async def models(
                 "name": model.name,
                 "code": model.code,
                 "work_type": work_type,
+                "supported_work_types": [part.strip() for part in model.work_type.split(",") if part.strip()],
+                "reference_capabilities": video_reference_capabilities(model.vendor_model, int(model.max_input_images or 0)) if video_model else None,
                 "capability_type": (
                     "video" if video_model else ("text" if text_model else (model.capability_type or "image"))
                 ),
@@ -2534,11 +2564,14 @@ async def quote(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StandardResponse[dict]:
+    if str(payload.get("work_type") or "") == "video":
+        raise BusinessError("请根据是否添加素材选择视频任务类型", code=40001)
     model = await db.execute(
         select(
             image_models_table.c.id,
             image_models_table.c.work_type,
             image_models_table.c.capability_type,
+            image_models_table.c.vendor_model,
             image_models_table.c.is_active,
             image_models_table.c.is_public,
         ).where(
@@ -2575,6 +2608,8 @@ async def quote(
     if video_model and not duration and aspect_ratio and "|" in aspect_ratio:
         _, packed_duration = unpack_video_task_aspect(aspect_ratio)
         price_aspect_ratio = packed_duration or aspect_ratio
+    if video_model:
+        normalize_video_duration_seconds(price_aspect_ratio, getattr(model_row, "vendor_model", "") or "")
     priced_quality = "medium" if quality == "auto" else quality
     price = await db.execute(
         select(
@@ -2653,11 +2688,6 @@ async def create_image_task(
     duration = str(payload.get("duration") or "").strip()
     work_type_value = str(payload.get("work_type") or "image_edit")
     if is_video_work_type(work_type_value) or work_type_value in {"text_to_video", "image_to_video"}:
-        duration_digits = "".join(ch for ch in duration if ch.isdigit()) if duration else ""
-        if duration_digits:
-            duration_seconds = int(duration_digits)
-            if duration_seconds < 1 or duration_seconds > 15:
-                raise BusinessError(code=40001, message=f"视频时长需在 1–15 秒之间，当前为 {duration_seconds} 秒")
         aspect_ratio = pack_video_task_aspect(aspect_ratio, duration)
     max_input_images = await db.scalar(
         select(image_models_table.c.max_input_images).where(
@@ -2665,13 +2695,24 @@ async def create_image_task(
             image_models_table.c.site_id == current_user.site_id,
         )
     )
+    video_capabilities = None
+    if is_video_work_type(work_type_value):
+        vendor_model = await db.scalar(select(image_models_table.c.vendor_model).where(
+            image_models_table.c.id == model_id, image_models_table.c.site_id == current_user.site_id,
+        ))
+        video_capabilities = video_reference_capabilities(vendor_model or "", int(max_input_images or 0))
     input_image_urls = await resolve_input_image_urls(
         db,
         site_id=current_user.site_id,
         user_id=current_user.id,
         payload=payload,
-        max_input_images=max(0, int(max_input_images or 0)),
+        max_input_images=video_capabilities["max_total"] if video_capabilities is not None else max(0, int(max_input_images or 0)),
+        video_capabilities=video_capabilities,
     )
+    if work_type_value == "text_to_video" and input_image_urls:
+        raise BusinessError("带参考素材的视频请使用参考生成任务类型", code=40001)
+    if work_type_value == "image_to_video" and not input_image_urls:
+        raise BusinessError("请添加参考素材，或使用文字生成视频", code=40001)
     input_image_url = input_image_urls[0] if input_image_urls else None
     team_id = await get_primary_team_id(db, current_user)
     await ensure_user_image_task_capacity(db, current_user.id, 1, team_id=team_id)

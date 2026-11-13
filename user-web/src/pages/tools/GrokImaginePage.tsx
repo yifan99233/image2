@@ -1,3 +1,4 @@
+import { VideoDurationPicker } from "@/components/video/VideoDurationPicker";
 import { LoadingIndicator } from "@/components/ui/LoadingIndicator";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
@@ -3601,22 +3602,8 @@ export const GrokImaginePage = ({ initialMedia = "image", preferImageInput = fal
                     <ChevronDown size={14} />
                   </button>
                   {openMenu === "duration" ? (
-                    <div className="gi-menu" role="listbox">
-                      {durationOptions.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          role="option"
-                          aria-selected={option.value === duration}
-                          className={option.value === duration ? "is-active" : ""}
-                          onClick={() => {
-                            setDuration(option.value);
-                            setOpenMenu(null);
-                          }}
-                        >
-                          {option.label || `${option.value}s`}
-                        </button>
-                      ))}
+                    <div className="gi-menu gi-duration-menu">
+                      <VideoDurationPicker options={durationOptions} value={duration} onChange={setDuration} />
                     </div>
                   ) : null}
                 </div>

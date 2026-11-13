@@ -40,6 +40,7 @@ class GenerationModelConfig:
     disable_retry: bool = False
     cdn_key: str = field(default="", repr=False)
     native_image_base_url: str = ""
+    storage_mode: str = "local"
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,7 @@ FIREFLY_VIDEO_MODELS = frozenset(
     "firefly-" + name for name in ("omniflash", "veo31-lite", "veo31-fast", "veo31", "kling3", "kling3omni", "ray314", "ray3")
 )
 ADOBE_VIDEO_MODEL_PREFIXES = (
+    "agent5-sora2",
     "firefly-omniflash",
     "firefly-ray3",
     "agent5-veo31",
@@ -95,6 +97,7 @@ ADOBE_VIDEO_MODEL_PREFIXES = (
     "firefly-kling-o3",
     "firefly-kling3",
     "firefly-seedance",
+    "firefly-sora2",
 )
 DOWNLOAD_CHUNK_BYTES = 256 * 1024
 PROVIDER_RESPONSE_CHUNK_BYTES = 64 * 1024
@@ -119,7 +122,9 @@ DownloadKind = Literal["input", "result"]
 def _read_response_bytes(response, max_bytes: int, *, label: str) -> bytes:
     """Read an upstream response with a hard memory bound."""
     limit = max(1, int(max_bytes))
-    content_length = response.headers.get("Content-Length")
+    headers = getattr(response, "headers", None)
+    get_header = getattr(headers, "get", None)
+    content_length = get_header("Content-Length") if callable(get_header) else None
     if content_length:
         try:
             if int(content_length) > limit:
@@ -132,7 +137,15 @@ def _read_response_bytes(response, max_bytes: int, *, label: str) -> bytes:
             pass
     content_buffer = bytearray()
     while True:
-        chunk = response.read(PROVIDER_RESPONSE_CHUNK_BYTES)
+        try:
+            chunk = response.read(PROVIDER_RESPONSE_CHUNK_BYTES)
+        except TypeError:
+            # Keep small file-like test doubles and legacy response wrappers
+            # compatible with the bounded reader.
+            chunk = response.read()
+            if chunk:
+                content_buffer.extend(chunk)
+            break
         if not chunk:
             break
         content_buffer.extend(chunk)
@@ -1448,12 +1461,29 @@ def _guess_media_mime_from_url(url: str, default: str = "video/mp4") -> str:
     return default
 
 
+def _media_url_candidate(value: object) -> str | None:
+    """Return only URL/path-shaped values, never provider status text."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text or any(ord(ch) > 127 or ch.isspace() for ch in text):
+        return None
+    if text.startswith(("http://", "https://", "data:")):
+        return text
+    # Gateways commonly return authenticated relative paths such as
+    # /v1/videos/<id>/content or /images/<file>.mp4. Bare status/error text
+    # (for example "视频任务失败" or "failed") must never be joined to the
+    # create endpoint and downloaded as if it were media.
+    if text.startswith("/") and re.fullmatch(r"/[A-Za-z0-9._~/%?=&:#-]+", text):
+        return text
+    if re.search(r"\.(?:mp4|webm|mov|m4v)(?:[?#].*)?$", text, re.IGNORECASE):
+        return text
+    return None
+
+
 def _extract_media_url(payload: object) -> str | None:
     if isinstance(payload, str):
-        text = payload.strip()
-        if text.startswith(("http://", "https://", "data:")):
-            return text
-        return None
+        return _media_url_candidate(payload)
     if isinstance(payload, list):
         for item in payload:
             found = _extract_media_url(item)
@@ -1474,9 +1504,9 @@ def _extract_media_url(payload: object) -> str | None:
         "media_url",
         "uri",
     ):
-        value = payload.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
+        value = _media_url_candidate(payload.get(key))
+        if value:
+            return value
 
     for key in ("video", "data", "output", "outputs", "results", "videos", "choices", "items", "message", "content"):
         if key in payload:
@@ -1520,6 +1550,12 @@ def _resolve_video_media_url(
 def uses_adobe_video_contract(vendor_model: str) -> bool:
     model = str(vendor_model or "").strip().lower()
     return model.startswith(ADOBE_VIDEO_MODEL_PREFIXES)
+
+
+def uses_task_content_video_contract(vendor_model: str) -> bool:
+    """Use the gateway's authenticated ``/videos/{id}/content`` route."""
+    model = str(vendor_model or "").strip().lower()
+    return uses_adobe_video_contract(model) or model.startswith("muse-")
 
 
 def _video_endpoint_candidates(base_url: str) -> list[str]:
@@ -1666,18 +1702,9 @@ def _video_image_ref(image: GeneratedImage) -> str:
     return _data_url_from_image(image)
 
 
-def _normalize_video_duration_seconds(duration_code: str) -> int | None:
-    """Parse and hard-validate official xAI duration range [1, 15]."""
-    duration = _parse_duration_seconds(duration_code)
-    if duration is None:
-        return None
-    if duration < 1 or duration > 15:
-        raise BusinessError(
-            f"视频时长需在 1–15 秒之间，当前为 {duration} 秒",
-            code=40001,
-            status_code=400,
-        )
-    return duration
+def _normalize_video_duration_seconds(duration_code: str, vendor_model: str = "") -> int | None:
+    from app.services.video_duration import normalize_video_duration_seconds
+    return normalize_video_duration_seconds(duration_code, vendor_model)
 
 
 def _normalize_video_resolution(resolution: str) -> str:
@@ -1712,7 +1739,7 @@ def _video_request_bodies(
     2. Limited compatibility fallbacks (never send both `duration` and `seconds`)
     Multi-image B: first image → `image`, remaining → `reference_images`.
     """
-    duration = _normalize_video_duration_seconds(duration_code)
+    duration = _normalize_video_duration_seconds(duration_code, config.vendor_model)
     ratio = (aspect_ratio or "").strip()
     if ratio and is_duration_code(ratio):
         ratio = ""
@@ -1731,6 +1758,20 @@ def _video_request_bodies(
         official["duration"] = duration
     if user_id:
         official["user"] = user_id
+
+    from app.services.video_references import video_reference_capabilities, validate_video_references
+    caps = video_reference_capabilities(config.vendor_model, max(len(source_images), 1))
+    if source_images and caps["contract"] in {"firefly", "muse"}:
+        validate_video_references([(ref.mime_type, len(ref.content)) for ref in source_images], caps)
+        # These gateways accept one typed list. Never fall back to an image-only
+        # body that would drop audio/video references or create another job.
+        official["reference_media"] = [
+            {"url": _video_image_ref(ref), "kind": ref.mime_type.split("/")[0]}
+            for ref in source_images
+        ]
+        return [official]
+    if any(ref.mime_type.startswith(("video/", "audio/")) for ref in source_images):
+        raise BusinessError("当前模型不支持视频或音频参考", code=40022)
 
     adobe_video_contract = uses_adobe_video_contract(config.vendor_model)
     if len(source_images) == 1:
@@ -1798,20 +1839,39 @@ def _download_video(
         if key.lower() in {"authorization", "x-api-key"}:
             headers[key] = value
     request = urllib.request.Request(url, headers=headers)
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            content = _read_response_bytes(
-                response,
-                settings.image_video_download_max_bytes,
-                label="生成视频",
+    retryable_statuses = {502, 503, 504}
+    max_attempts = 4
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                content = _read_response_bytes(
+                    response,
+                    settings.image_video_download_max_bytes,
+                    label="生成视频",
+                )
+                mime_type = (response.headers.get_content_type() or "").strip() or _guess_media_mime_from_url(url)
+            break
+        except urllib.error.HTTPError as exc:
+            if int(exc.code) not in retryable_statuses or attempt >= max_attempts:
+                raise BusinessError(f"下载生成视频失败: {exc}", code=50220, status_code=502) from exc
+            logger.warning(
+                "video_media_download_retry url=%s status=%s attempt=%s/%s",
+                url,
+                exc.code,
+                attempt,
+                max_attempts,
             )
-            mime_type = (response.headers.get_content_type() or "").strip() or _guess_media_mime_from_url(url)
-    except BusinessError:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        if _is_socket_timeout_error(exc):
-            raise BusinessError(MODEL_TIMEOUT_MESSAGE, code=MODEL_TIMEOUT_CODE, status_code=400) from exc
-        raise BusinessError(f"下载生成视频失败: {exc}", code=50220, status_code=502) from exc
+            try:
+                exc.close()
+            except Exception:  # noqa: BLE001
+                pass
+            sleep(min(2 ** (attempt - 1), 8))
+        except BusinessError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            if _is_socket_timeout_error(exc):
+                raise BusinessError(MODEL_TIMEOUT_MESSAGE, code=MODEL_TIMEOUT_CODE, status_code=400) from exc
+            raise BusinessError(f"下载生成视频失败: {exc}", code=50220, status_code=502) from exc
     if not content:
         raise BusinessError("下载生成视频为空", code=50221, status_code=502)
     return GeneratedImage(content=content, mime_type=mime_type or "video/mp4", source_url=url)
@@ -1867,9 +1927,9 @@ def _poll_video_job(
             return None
         if not isinstance(payload, dict):
             return None
-        media_url = _extract_media_url(payload)
-        if media_url:
-            return payload
+        # Check terminal failure before extracting any `url` field. Some
+        # gateways put human-readable failure text in `url`; treating it as a
+        # relative media path later produces a misleading download/502 error.
         status = str(payload.get("status") or payload.get("state") or "").lower()
         if status in {"failed", "error", "cancelled", "canceled", "expired"}:
             error_message = ""
@@ -1881,6 +1941,9 @@ def _poll_video_job(
             if status == "expired":
                 raise BusinessError(error_message or "视频生成任务已过期，请重新提交", code=50214, status_code=502)
             raise BusinessError(error_message or "视频生成任务失败", code=50214, status_code=502)
+        media_url = _extract_media_url(payload)
+        if media_url:
+            return payload
         if status in {"succeeded", "success", "completed", "complete", "done"} and not media_url:
             raise BusinessError("视频生成完成但未返回链接", code=50214, status_code=502)
         remaining = deadline - _time.monotonic()
@@ -1904,12 +1967,33 @@ def generate_video(
     if not config.api_key.strip():
         raise BusinessError("模型供应商 API Key 为空", code=50201, status_code=502)
     deadline_monotonic = _request_deadline_monotonic(config.timeout_seconds)
-    source_images = _input_images_from_values(
-        input_image,
-        effective_model_timeout_seconds(config.timeout_seconds),
-        deadline_monotonic=deadline_monotonic,
-    )
+    from app.services.video_references import inspect_reference, video_reference_capabilities, validate_video_references
+    caps = video_reference_capabilities(config.vendor_model)
+    typed_video = caps["contract"] in {"firefly", "muse"}
+    if typed_video:
+        source_images = []
+        reference_sizes = []
+        values = [input_image] if isinstance(input_image, str) else input_image or []
+        for value in values:
+            ref = _input_image_from_value(value, _remaining_request_timeout(deadline_monotonic))
+            if ref is None:
+                continue
+            mime, _, _ = inspect_reference(ref.content)
+            reference_sizes.append((mime, len(ref.content)))
+            validate_video_references(reference_sizes, caps, complete=False)
+            # URLs are sent upstream. Retain at most one downloaded file in
+            # memory instead of all video/audio bytes for a multi-file task.
+            source_images.append(replace(ref, mime_type=mime, content=b"" if (ref.source_url or "").startswith(("https://", "http://")) else ref.content))
+            del ref
+        validate_video_references(reference_sizes, caps)
+    else:
+        source_images = _input_images_from_values(
+            input_image,
+            effective_model_timeout_seconds(config.timeout_seconds),
+            deadline_monotonic=deadline_monotonic,
+        )
     firefly_video = config.vendor_model in FIREFLY_VIDEO_MODELS
+    firefly_video = firefly_video or typed_video
     endpoints = _video_endpoint_candidates(config.base_url)
     if firefly_video:
         # Both Agent and Agent5 accept this route. An ambiguous submit response
@@ -2005,7 +2089,7 @@ def generate_video(
                                 _extract_media_url(polled) or "",
                                 poll_url=poll_url,
                                 create_endpoint=endpoint,
-                                prefer_task_content=uses_adobe_video_contract(
+                                prefer_task_content=uses_task_content_video_contract(
                                     config.vendor_model
                                 ),
                             )
@@ -2039,8 +2123,14 @@ def generate_video(
                         mime_type=downloaded.mime_type,
                         source_url=media_url,
                     )
-                except BusinessError:
-                    if firefly_video:
+                except BusinessError as exc:
+                    logger.warning(
+                        "video_media_download_failed model=%s url=%s error=%s",
+                        config.vendor_model,
+                        _safe_provider_url(media_url),
+                        str(exc)[:300],
+                    )
+                    if firefly_video or str(config.storage_mode).strip().lower() != "native":
                         raise
                     result = GeneratedImage(
                         content=b"",
@@ -2136,7 +2226,7 @@ def resume_video_job(
                 media_url,
                 poll_url=poll_url,
                 create_endpoint=endpoint,
-                prefer_task_content=uses_adobe_video_contract(config.vendor_model),
+                prefer_task_content=uses_task_content_video_contract(config.vendor_model),
             )
             if media_url.startswith("data:"):
                 image = _decode_base64_image(media_url, default_mime_type="video/mp4")
@@ -2157,8 +2247,14 @@ def resume_video_job(
                         mime_type=downloaded.mime_type,
                         source_url=media_url,
                     )
-                except BusinessError:
-                    if config.vendor_model in FIREFLY_VIDEO_MODELS:
+                except BusinessError as exc:
+                    logger.warning(
+                        "video_media_download_failed model=%s url=%s error=%s",
+                        config.vendor_model,
+                        _safe_provider_url(media_url),
+                        str(exc)[:300],
+                    )
+                    if config.vendor_model in FIREFLY_VIDEO_MODELS or str(config.storage_mode).strip().lower() != "native":
                         raise
                     result = GeneratedImage(
                         content=b"",

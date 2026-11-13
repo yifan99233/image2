@@ -1,5 +1,5 @@
 import { Scissors } from "lucide-react";
-import { GalleryHorizontalEnd, Frame, Home, Image, Images, Layers3, Library, ContactRound, Clapperboard, Film, Sparkles, Wand2 } from "@/components/ui/StudioIcons";
+import { GalleryHorizontalEnd, Frame, Home, Image, Images, Layers3, Library, ContactRound, Clapperboard, Sparkles, Wand2 } from "@/components/ui/StudioIcons";
 import { Activity, KeyRound } from "lucide-react";
 import { ShoppingBag } from "lucide-react";
 import type { NavigationGroup } from "@/types/navigation";
@@ -35,8 +35,7 @@ export const navigationGroups: NavigationGroup[] = [
   {
     label: "视频创意",
     items: [
-      { label: "文生视频", path: "/create/text-to-video", icon: Clapperboard, moduleKey: "text_to_video" },
-      { label: "图生视频", path: "/create/image-to-video", icon: Film, moduleKey: "image_to_video" },
+      { label: "视频生成", path: "/create/video", icon: Clapperboard, anyModuleKeys: ["text_to_video", "image_to_video"] },
     ],
   },
   {

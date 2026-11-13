@@ -42,6 +42,8 @@ export function ConnectionCreateMenu({
             <div className="grid gap-1">
                 <ConnectionCreateOption theme={theme} icon={<List className="size-5" />} title={t("canvas.createMenu.text")} description={t("canvas.createMenu.textDescription")} onClick={() => onCreate(CanvasNodeType.Text)} />
                 <ConnectionCreateOption theme={theme} icon={<ImageIcon className="size-5" />} title={t("canvas.createMenu.image")} onClick={() => onCreate(CanvasNodeType.Image)} />
+                <ConnectionCreateOption theme={theme} icon={<Video className="size-5" />} title={t("canvas.createMenu.video")} onClick={() => onCreate(CanvasNodeType.Video)} />
+                <ConnectionCreateOption theme={theme} icon={<Music2 className="size-5" />} title={t("canvas.createMenu.audio")} onClick={() => onCreate(CanvasNodeType.Audio)} />
                 <ConnectionCreateOption theme={theme} icon={<Settings2 className="size-5" />} title={t("canvas.createMenu.config")} description={t("canvas.createMenu.configDescription")} onClick={() => onCreate(CanvasNodeType.Config)} />
             </div>
         </div>
@@ -78,7 +80,7 @@ export function NodeCreateMenu({ position, onCreate, onClose }: { position: Posi
     const { t } = useTranslation();
     useNodeRegistryVersion();
     const menuRef = useRef<HTMLDivElement>(null);
-    const definitions = listNodeDefinitions().filter((def) => def.showInCreateMenu !== false && !["video", "audio"].includes(def.type));
+    const definitions = listNodeDefinitions().filter((def) => def.showInCreateMenu !== false);
     // Close automatically when clicking outside the menu.
     useEffect(() => {
         const handlePointerDown = (event: PointerEvent) => {

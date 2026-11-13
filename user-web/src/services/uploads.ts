@@ -1,6 +1,7 @@
 import { appConfig } from "@/config/env";
 import { ApiError } from "@/services/apiError";
 import { sessionStorageService } from "@/services/session";
+import { requestFormData } from "@/services/http";
 import type { ApiEnvelope, ApiErrorPayload, ImageAsset } from "@/types/api";
 
 const buildUrl = (path: string) => {
@@ -11,6 +12,12 @@ const buildUrl = (path: string) => {
 };
 
 export const uploadService = {
+  async uploadVideoReference(file: File, modelId: number): Promise<ImageAsset> {
+    const body = new FormData();
+    body.append("file", file);
+    body.append("model_id", String(modelId));
+    return requestFormData<ImageAsset>("/uploads/video-references", body, { method: "POST", timeoutMs: 180_000 });
+  },
   async uploadImages(files: File[], concurrency = 4): Promise<ImageAsset[]> {
     if (!files.length) return [];
     const results = new Array<ImageAsset>(files.length);

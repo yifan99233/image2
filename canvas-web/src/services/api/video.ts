@@ -1,3 +1,6 @@
+import { callHost } from "@/integration/bridge";
+import { generationInput, uploadHostImage } from "@/integration/runtime";
+import type { CanvasAsset } from "@/integration/protocol";
 import axios from "axios";
 import { nanoid } from "nanoid";
 
@@ -18,7 +21,7 @@ type RequestOptions = { signal?: AbortSignal };
 type VideoMediaOptions = RequestOptions & { videos?: ReferenceVideo[]; audios?: ReferenceAudio[] };
 const apiText = (key: string, options?: Record<string, unknown>) => i18n.t(`apiErrors.${key}`, options);
 
-export type VideoGenerationResult = { blob?: Blob; url?: string; mimeType?: string };
+export type VideoGenerationResult = { asset?: CanvasAsset; blob?: Blob; url?: string; mimeType?: string };
 export type VideoGenerationTask = { id: string; provider: "openai" | "gemini" | "plugin"; model: string };
 type GeminiInlineData = { bytesBase64Encoded: string; mimeType: string };
 type GeminiVideoOperation = {
@@ -70,24 +73,23 @@ function videoTaskFailed(message: string) {
 }
 
 export async function createVideoGenerationTask(config: AiConfig, prompt: string, references: ReferenceImage[] = [], options?: VideoMediaOptions): Promise<VideoGenerationTask> {
-    const selectedModel = (config.model || config.videoModel).trim();
-    const requestConfig = resolveModelRequestConfig(config, selectedModel);
-    const script = resolveModelScript(config, selectedModel);
-    if (script) return createPluginVideoTask(requestConfig, selectedModel, script, prompt, references, options);
-    assertVideoConfig(requestConfig, requestConfig.model);
-    if (requestConfig.apiFormat === "gemini") return createGeminiVideoTask(requestConfig, selectedModel, prompt, references, options);
-    return createOpenAIVideoTask(requestConfig, selectedModel, prompt, references, options);
+    if (options?.videos?.length || options?.audios?.length) throw new Error("当前模型仅支持文字和图片参考，请移除视频或音频参考");
+    const urls = await Promise.all(references.map(async (image) => /^(data:|blob:)/.test(image.dataUrl) ? (await uploadHostImage(image.dataUrl, options?.signal)).url : image.dataUrl));
+    const tasks = await callHost("generation.create", generationInput(config, prompt, urls), options?.signal);
+    return { id: String(tasks[0].id), provider: "openai", model: config.model };
+
 }
 
 export async function pollVideoGenerationTask(config: AiConfig, task: VideoGenerationTask, options?: RequestOptions): Promise<VideoGenerationTaskState> {
-    if (task.provider === "plugin") {
-        const result = pluginVideoResults.get(task.id);
-        return result ? { status: "completed", result } : { status: "failed", error: apiText("pluginVideoExpired") };
+    const [result] = await callHost("generation.status", { ids: [Number(task.id)] }, options?.signal);
+    if (!result) return { status: "failed", error: "生成任务不存在，请到我的作品检查记录" };
+    if (["failed", "refunded"].includes(result.status)) return { status: "failed", error: result.error || "视频生成失败" };
+    if (result.status === "succeeded") {
+        const asset = result.assets.find((item) => item.mimeType.startsWith("video/"));
+        return asset ? { status: "completed", result: { url: asset.url, mimeType: asset.mimeType, asset } } : { status: "failed", error: "任务未返回视频" };
     }
-    const requestConfig = resolveModelRequestConfig(config, task.model);
-    assertVideoConfig(requestConfig, requestConfig.model);
-    if (task.provider === "gemini") return pollGeminiVideoTask(requestConfig, task, options);
-    return pollOpenAIVideoTask(requestConfig, task, options);
+    return { status: "pending" };
+
 }
 
 async function createPluginVideoTask(config: AiConfig, model: string, script: string, prompt: string, references: ReferenceImage[], options?: VideoMediaOptions): Promise<VideoGenerationTask> {
@@ -135,6 +137,7 @@ function videoPluginResult(result: unknown): VideoGenerationResult {
 }
 
 export async function storeGeneratedVideo(result: VideoGenerationResult): Promise<UploadedFile> {
+    if (result.asset) return { ...result.asset, storageKey: "" };
     if (result.blob) return uploadMediaFile(result.blob, "video");
     if (result.url) {
         try {

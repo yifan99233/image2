@@ -6,6 +6,7 @@ export type NavigationItem = {
   icon: LucideIcon;
   badge?: string;
   moduleKey?: string;
+  anyModuleKeys?: string[];
 };
 
 export type NavigationGroup = {

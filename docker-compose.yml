@@ -59,6 +59,7 @@ services:
     build:
       context: ./user-server
     container_name: image2-user-server
+    init: true
     restart: unless-stopped
     # The 5,000-task capacity profile needs enough descriptors for upstream
     # sockets, result downloads, database callbacks and health checks.
@@ -140,7 +141,7 @@ services:
       IMAGE_EXPORT_STREAM_MAX_BYTES: ${IMAGE_EXPORT_STREAM_MAX_BYTES:-107374182400}
     command: >
       sh -c "alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+             exec uvicorn app.main:app --host 0.0.0.0 --port 8000"
     depends_on:
       postgres:
         condition: service_healthy

@@ -69,6 +69,21 @@
   opacity: 0.35;
 }
 
+.video-reference-order {
+  position: static;
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px;
+}
+
+.video-reference-order button {
+  width: 36px;
+  height: 36px;
+  color: var(--text);
+  background: var(--surface-muted);
+  border-color: var(--border);
+}
+
 .batch-edit-asset-prompt {
   display: grid;
   gap: 6px;
@@ -135,6 +150,8 @@
 }
 
 .asset-preview-card img,
+.asset-preview-card video,
+.asset-preview-card__audio,
 .asset-preview-card__fallback {
   aspect-ratio: 4 / 3;
   background: var(--surface-muted);
@@ -142,6 +159,23 @@
   object-fit: cover;
   place-items: center;
   width: 100%;
+}
+
+.asset-preview-card__audio {
+  align-content: center;
+  gap: 12px;
+  padding: 12px 6px;
+  min-width: 0;
+}
+
+.asset-preview-card__audio audio {
+  width: 100%;
+  min-width: 0;
+}
+
+.file-drop:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .asset-preview-card__fallback {

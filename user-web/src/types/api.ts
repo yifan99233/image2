@@ -163,11 +163,24 @@ export type ModelOption = {
   label: string;
 };
 
+export type VideoReferenceCapabilities = {
+  kinds: string[];
+  mime_types: string[];
+  max_total: number;
+  max_by_kind: Record<string, number>;
+  max_bytes_by_kind: Record<string, number>;
+  max_total_bytes?: number | null;
+  frame_order: boolean;
+  audio_requires_visual: boolean;
+};
+
 export type ImageModel = {
   id: number;
   name: string;
   code: string;
   work_type: string;
+  supported_work_types?: string[];
+  reference_capabilities?: VideoReferenceCapabilities | null;
   capability_type?: "image" | "video" | string;
   description: string;
   is_recommended: boolean;

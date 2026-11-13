@@ -12,11 +12,12 @@ export function rememberImage(asset: CanvasAsset) { knownImages.set(asset.url, a
 
 export function generationInput(config: AiConfig, prompt = "", references: string[] = []): GenerationInput {
     const model = getHostModel(config.model);
-    if (!model) throw new Error("请选择本站可用的生图模型");
-    const [requestedResolution, requestedRatio] = config.size.split("|");
+    if (!model) throw new Error("请选择本站可用的模型");
+    const video = model.capability_type === "video";
+    const [requestedResolution, requestedRatio] = video ? [config.vquality, config.size] : config.size.split("|");
     const resolution = model.supported_resolutions.find((item) => item.value === requestedResolution)?.value || model.supported_resolutions[0]?.value || "";
     const aspectRatio = model.supported_aspect_ratios.find((item) => item.value === (requestedRatio || config.size))?.value || model.supported_aspect_ratios[0]?.value || "";
-    return { modelId: model.id, resolution, aspectRatio, prompt, references, quality: config.quality as GenerationInput["quality"], count: Number(config.count) || 1 };
+    return { modelId: model.id, resolution, aspectRatio, prompt, references, quality: config.quality as GenerationInput["quality"], count: video ? 1 : Number(config.count) || 1, duration: video ? model.supported_durations?.find((item) => item.value === config.videoSeconds)?.value || model.supported_durations?.[0]?.value : undefined };
 }
 
 export async function uploadHostImage(input: string | Blob, signal?: AbortSignal): Promise<{ url: string; width: number; height: number; bytes: number; mimeType: string }> {
