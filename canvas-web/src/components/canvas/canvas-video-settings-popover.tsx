@@ -11,12 +11,13 @@ import type { AiConfig } from "@/stores/use-config-store";
 
 type CanvasVideoSettingsPopoverProps = {
     config: AiConfig;
+    referenceImages?: string[];
     onConfigChange: (key: keyof AiConfig, value: string) => void;
     buttonClassName?: string;
     placement?: "topLeft" | "top" | "topRight" | "bottomLeft" | "bottom" | "bottomRight";
 };
 
-export function CanvasVideoSettingsPopover({ config, onConfigChange, buttonClassName, placement = "topLeft" }: CanvasVideoSettingsPopoverProps) {
+export function CanvasVideoSettingsPopover({ config, referenceImages, onConfigChange, buttonClassName, placement = "topLeft" }: CanvasVideoSettingsPopoverProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const buttonRef = useRef<HTMLSpanElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
@@ -44,7 +45,7 @@ export function CanvasVideoSettingsPopover({ config, onConfigChange, buttonClass
         };
     }, [open]);
 
-    const panel = open && buttonRect ? <VideoSettingsPortal buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} /> : null;
+    const panel = open && buttonRect ? <VideoSettingsPortal buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} referenceImages={referenceImages} onConfigChange={onConfigChange} /> : null;
 
     return (
         <>
@@ -66,6 +67,7 @@ function VideoSettingsPortal({
     placement,
     theme,
     config,
+    referenceImages,
     onConfigChange,
 }: {
     buttonRect: DOMRect;
@@ -73,6 +75,7 @@ function VideoSettingsPortal({
     placement: CanvasVideoSettingsPopoverProps["placement"];
     theme: (typeof canvasThemes)[keyof typeof canvasThemes];
     config: AiConfig;
+    referenceImages?: string[];
     onConfigChange: (key: keyof AiConfig, value: string) => void;
 }) {
     const width = 356;
@@ -105,7 +108,7 @@ function VideoSettingsPortal({
             onClick={(event) => event.stopPropagation()}
         >
             <ConfigProvider getPopupContainer={() => panelRef.current || document.body}>
-                <HostVideoSettings config={config} onConfigChange={onConfigChange} />
+                <HostVideoSettings config={config} referenceImages={referenceImages} onConfigChange={onConfigChange} />
             </ConfigProvider>
         </div>,
         document.body,

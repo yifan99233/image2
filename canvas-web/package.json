@@ -11,7 +11,8 @@
     "test:video": "node tests/video-smoke.mjs",
     "start": "vite preview --host 0.0.0.0 --port 3000",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test:reference-video": "node tests/reference-video-smoke.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.1",

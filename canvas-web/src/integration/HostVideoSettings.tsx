@@ -4,7 +4,8 @@ import type { AiConfig } from "@/stores/use-config-store";
 import { generationInput, getHostModel } from "./runtime";
 import { callHost } from "./bridge";
 
-export function HostVideoSettings({ config, onConfigChange }: { config: AiConfig; onConfigChange: (key: keyof AiConfig, value: string) => void }) {
+export function HostVideoSettings({ config, referenceImages = [], onConfigChange }: { config: AiConfig; referenceImages?: string[]; onConfigChange: (key: keyof AiConfig, value: string) => void }) {
+    const referenceKey = JSON.stringify(referenceImages);
     const model = getHostModel(config.model);
     const [quote, setQuote] = useState("");
     let spec: ReturnType<typeof generationInput> | undefined;
@@ -13,11 +14,11 @@ export function HostVideoSettings({ config, onConfigChange }: { config: AiConfig
         let ignore = false;
         setQuote("正在计算积分…");
         try {
-            const input = generationInput(config, "规格报价");
+            const input = generationInput(config, "规格报价", JSON.parse(referenceKey));
             callHost("generation.quote", input).then((result) => { if (!ignore) setQuote(`预计 ${result.credit_cost} 积分`); }).catch((error) => { if (!ignore) setQuote(error.message); });
         } catch { setQuote("暂无可用视频模型，请联系管理员配置"); }
         return () => { ignore = true; };
-    }, [config.model, config.size, config.vquality, config.videoSeconds]);
+    }, [config.model, config.size, config.vquality, config.videoSeconds, referenceKey]);
     if (!model || !spec) return <p className="text-sm opacity-70">暂无可用视频模型，请联系管理员配置</p>;
     return <div className="space-y-4">
         <label className="grid gap-2 text-sm">分辨率<Select aria-label="视频分辨率" value={spec.resolution} options={model.supported_resolutions} onChange={(value) => onConfigChange("vquality", value)} /></label>
